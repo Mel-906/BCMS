@@ -1,9 +1,6 @@
 名前,職業,電話番号,e-mail,所属,所属Tel,所属住所,その他
-Kei Hoshino,Customer Engineer,070-4282-5073,keihoshino@google.com,Google Cloud Japan G.K. Shibuya Stream,,"Tokyo 3-21-3 Shibuya, Shibuya-ku",
-周澤宇,博士課程,080-3219-7109,t.shu@css.t.u-tokyo.ac.jp,東京大学大学院工学系研究科技術経営戦略学専攻西野研究室,03-5841-0718,東京都文京区本郷7-3-1 工学3号館205室,所属Telは代表番号です。
-榊実礼,Group Manager,,shenshill723@gmail.com,GifTs - Group Maneger,,,
-福永 開,アルゴリズムエンジニア,03-6801-6718,kai_fukunaga@pkshatech.com,株式会社 PKSHA Technology Al Solution 事業本部,,東京都文京区本郷2-35-10 本郷瀬川ビル4F,受付5F
-本村 陽希,学生,080-9540-1921,haruki09217@gmail.com,静岡県立清水東高等学校,,,
-中村百花,シニアコンサルタント,050-5490-3601,m.nakamura.yx@future.co.jp,フューチャーアーキテクト株式会社 公共サービス事業部,050-5490-3601,東京都品川区大崎1-2-2 アートヴィレッジ大崎セントラルタワー,代表番号: 03-5740-5721
-諸岡 成,学生,080-2628-3882,morooka.akira.23@shizuoka.ac.jp,静岡大学 情報学部 情報社会学科 原田伸一郎研究室,,静岡県浜松市中央区城北 3-5-1,直通
-高島湊斗,インターン生,03-5404-3479,2401_platinum.blonde@intern.singularitybattlequest.club,一般社団法人 未来キッズコンテンツ総合研究所 シンギュラリティバトルクエスト運営事務局,03-5404-3479,東京都港区虎ノ門4-3-20 神谷町MTビル 14F,Fax:03-5859-5132
+Kei Hoshino,Customer Engineer,,keihoshino@google.com,Google Cloud Japan G.K. Shibuya Stream,,"Tokyo 3-21-3 Shibuya, Shibuya-ku",
+周澤宇,東京大学大学院工学系研究科技術経営戦略学専攻 博士課程,,t.shu@css.t.u-tokyo.ac.jp,東京大学大学院工学系研究科 技術経営戦略学専攻 西野研究室,,東京都文京区本郷7-3-1 工学3号館205室,
+榊実礼,Group Maneger,,shenshill723@gmail.com,"中央大学 経済学部公共・環境経済学科 Digital and Public Relations, Global R&D",,,GifTs ID : S000002
+福永開,アルゴリズムエンジニア,,kai_fukunaga@pkshatech.com,株式会社 PKSHA Technology Al Solution 事業本部,,東京都文京区本郷2-35-10 本郷瀬川ビル4F (受付5F),
+本村 陽希,学生,,haruki09217@gmail.com,静岡県立清水東高等学校,,,SNSアカウント: @Haruki_M_0217

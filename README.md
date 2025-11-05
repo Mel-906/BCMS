@@ -1,47 +1,54 @@
-# BCMS OCR Pipeline
+# YomiToku OCR Pipeline
 
-Intel Arc (XPU) / CPU 両対応の OCR ツールです。画像からテキストを TrOCR で読み取り、名刺に記載された情報を一貫した JSONL 形式に整形して出力します。
+名刺画像を YomiToku で解析し、Gemini API を用いて連絡先情報を CSV にまとめるツールです。
 
-## セットアップ（uv 利用）
+## セットアップ
 
 ```bash
 uv sync
 ```
 
-Intel Arc を利用する場合は、以下のように Intel 提供のホイールを追加インデックスから取得してください。
+必要な主要パッケージ：
+- yomitoku
+- google-generativeai
+- opencv-python-headless
+- easyocr
 
-```bash
-uv pip install \
-  --index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \
-  torch intel-extension-for-pytorch
+### API キーの設定
+
+`env.local` （リポジトリ同梱のテンプレート）をコピーし、Gemini API キーを設定してください。
+
+```
+GEMINI_API_KEY=your_api_key_here
 ```
 
-## 使い方
-
-```bash
-uv run ocr-local path/to/images --device auto --jsonl-output results.jsonl
-```
-
-`--model-name` オプションで手書き向けモデル（例: `microsoft/trocr-base-handwritten`）に切り替えられます。抽出結果は `company`/`person`/`title`/`phone_numbers`/`email_addresses` など名刺で頻出するフィールドに整理されます。
-
-## 画像の前処理
-
-OCR 前にノイズ除去やコントラスト補正を施したい場合は、同梱の前処理スクリプトを利用できます。
+## 画像前処理（推奨）
 
 ```bash
 uv run python preprocess_images.py photo --output-dir photo_preprocessed
 ```
 
-- EXIF に基づき向きを補正します。
-- 短辺 720px 未満の画像は自動でリサイズされます。
-- カラーノイズ除去、CLAHE による局所コントラスト改善、アンシャープマスク、ガンマ補正を段階的に適用します。
-- `photo_preprocessed` に処理済み画像が生成されるため、このフォルダを `yomitoku.py` などに渡すと安定した OCR 結果が得られやすくなります。
+- EXIF 向き補正、短辺 720px 以上へのリサイズ
+- カラーノイズ除去、CLAHE、アンシャープマスク、ガンマ補正
 
-## DeepSeek OCR Runner
+## OCR & サマリ生成
 
 ```bash
-uv run python deep_seak.py photo/d.jpg --device auto --work-dir outputs_deepseek
+uv run python yomitoku.py photo_preprocessed \
+  --output-dir yomitoku_results \
+  --device auto
 ```
 
-- `--recognizer-model` に `microsoft/trocr-large-printed`（既定値）などを指定すると EasyOCR の予測を高精度モデルで補正し、句読点を含むテキストを強化できます。不要な場合は `--recognizer-model none` を指定してください。
-- `--base-size`/`--image-size`/`--disable-crop` と `--no-auto-resolution` で DeepSeek-OCR の解像度や分割挙動を調整できます。
+- per-image ファイルはデフォルトで出力しません（必要なら `--formats html json md csv` 等を指定）。
+- `yomitoku_results/summary.csv` に各画像 1 行で「名前／職業／電話番号／e-mail／所属／所属Tel／所属住所／その他」を出力します。
+- Gemini API が利用できない場合はエラーで停止します。`--disable-gemini` を指定するとヒューリスティック抽出に切り替え可能です。
+
+## 簡易 EasyOCR
+
+線画用のシンプルな検証には `ocr_local.py` を利用できます。
+
+```bash
+uv run ocr-local photo/IMG_4530.jpg --output-dir ocr_outputs
+```
+
+- 複数ファイル／ディレクトリに対応し、注釈付き PNG を出力します。

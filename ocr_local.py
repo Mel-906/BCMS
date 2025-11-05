@@ -7,9 +7,9 @@ from PIL import Image, ImageDraw, ImageFont
 reader = easyocr.Reader(["en", "ja"])
 
 
-def analyze_picture(target_path: str, output_path: str | None = None) -> None:
+def analyze_picture(target_path: Path, output_path: Path | None = None) -> None:
     """指定した画像に対して OCR を実行し、検出結果を描画して保存する。"""
-    results = reader.readtext(target_path)
+    results = reader.readtext(str(target_path))
     image = Image.open(target_path).convert("RGB")
     draw = ImageDraw.Draw(image)
 
@@ -36,21 +36,71 @@ def analyze_picture(target_path: str, output_path: str | None = None) -> None:
 
         print({"bbox": points, "text": text, "confidence": confidence})
 
-    target = Path(target_path)
     if output_path is None:
-        output_path_path = target.with_name(f"{target.stem}_annotated.png")
+        output_path_path = target_path.with_name(f"{target_path.stem}_annotated.png")
     else:
-        output_path_path = Path(output_path)
+        output_path_path = output_path
     output_path_path.parent.mkdir(parents=True, exist_ok=True)
     image.save(output_path_path)
     print(f"[INFO] Saved annotated image to {output_path_path}")
 
 
+def collect_images(inputs: list[str]) -> list[Path]:
+    image_paths: list[Path] = []
+    seen: set[Path] = set()
+    supported = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
+
+    for raw in inputs:
+        path = Path(raw).expanduser()
+        if path.is_file() and path.suffix.lower() in supported:
+            resolved = path.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                image_paths.append(resolved)
+            continue
+
+        if path.is_dir():
+            for candidate in sorted(path.rglob("*")):
+                if candidate.is_file() and candidate.suffix.lower() in supported:
+                    resolved = candidate.resolve()
+                    if resolved not in seen:
+                        seen.add(resolved)
+                        image_paths.append(resolved)
+            continue
+
+        raise FileNotFoundError(f"Input path not found or unsupported: {path}")
+
+    if not image_paths:
+        raise FileNotFoundError("No supported images were found in the provided inputs.")
+
+    return image_paths
+
+
+def main(argv: list[str] | None = None) -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run EasyOCR on images and save annotated copies.")
+    parser.add_argument("inputs", nargs="+", help="Image files or directories to process.")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Destination directory for annotated output files.",
+    )
+
+    args = parser.parse_args(argv)
+
+    output_root: Path | None = args.output_dir
+    if output_root is not None:
+        output_root = output_root.expanduser().resolve()
+        output_root.mkdir(parents=True, exist_ok=True)
+
+    for image_path in collect_images(args.inputs):
+        if output_root is not None:
+            output_path = output_root / f"{image_path.stem}_annotated.png"
+        else:
+            output_path = image_path.with_name(f"{image_path.stem}_annotated.png")
+        analyze_picture(image_path, output_path)
+
+
 if __name__ == "__main__":
-    analyze_picture("photo/IMG_4530.jpg")
-    analyze_picture("photo/a.jpg")
-    analyze_picture("photo/b.jpg")
-    analyze_picture("photo/c.jpg")
-    analyze_picture("photo/d.jpg")
-    analyze_picture("photo/e.jpg")
-    analyze_picture("photo/f.jpg")
+    main()

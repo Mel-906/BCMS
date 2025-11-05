@@ -174,29 +174,66 @@ def _extract_json_from_text(text: str) -> Dict[str, str] | None:
     return None
 
 
-def call_gemini_summary(model: object, results_dict: Dict) -> Dict[str, str]:
-    payload = json.dumps(results_dict, ensure_ascii=False)
+def build_table_strings(results: DocumentAnalyzerSchema) -> List[str]:
+    table_strings: List[str] = []
+    for table in results.tables:
+        rows: Dict[int, Dict[int, str]] = {}
+        for cell in table.cells:
+            row_idx = cell.row - 1
+            col_idx = cell.col - 1
+            rows.setdefault(row_idx, {})
+            content = (cell.contents or "").strip()
+            rows[row_idx][col_idx] = content
+
+        rendered_rows: List[str] = []
+        for row_idx in sorted(rows.keys()):
+            cols = rows[row_idx]
+            if not cols:
+                continue
+            max_col = max(cols.keys())
+            row_cells = [cols.get(col, "") for col in range(max_col + 1)]
+            joined = " | ".join(cell for cell in row_cells if cell)
+            if joined:
+                rendered_rows.append(joined)
+        if rendered_rows:
+            table_strings.append("\n".join(rendered_rows))
+    return table_strings
+
+
+def build_gemini_payload(results: DocumentAnalyzerSchema) -> Dict[str, List[str]]:
+    paragraphs: List[str] = []
+    for paragraph in results.paragraphs:
+        text = (paragraph.contents or "").strip()
+        if text:
+            paragraphs.append(text.replace("\n", " "))
+
+    table_strings = build_table_strings(results)
+
+    lines = extract_lines(results)
+    unique_lines: List[str] = []
+    seen: Set[str] = set()
+    for line in lines:
+        if line not in seen:
+            seen.add(line)
+            unique_lines.append(line)
+        if len(unique_lines) >= 200:
+            break
+
+    return {
+        "paragraphs": paragraphs,
+        "tables": table_strings,
+        "lines": unique_lines,
+    }
+
+
+def call_gemini_summary(model: object, payload_dict: Dict[str, List[str]]) -> Dict[str, str]:
+    payload = json.dumps(payload_dict, ensure_ascii=False)
     prompt = (
-        "あなたはOCRで抽出された名刺情報から連絡先を整理するアシスタントです。" 
-        "以下のJSONを読み取り、次のキーを持つJSONオブジェクトを必ず1つ返してください:"
-        "['名前','職業','Tel','e-mail','所属','代表Tel','所属住所郵便番号','所属住所','URL','その他']。"
-        "不明な項目は空文字にしてください。出力はJSONのみで他の文章を含めないでください。"
-        "名前はフルネームで返してください。"
-        "職業はなるべく具体的に返してください。"
-        "大学生や高校生の場合は、職業は学生としてください。"
-        "Telは、###-####-####の形式で返してください。" 
-        "Telは、直通を優先してください。"
-        "e-mailは複数ある場合、セミコロン(;)で区切ってください。"
-        "所属はなるべく長く、正式名称で返してください。"
-        "所属は、会社名、団体名、学校名などを含みます。"
-        "所属は、部署名まで含んでください。"
-        "代表Telは、会社や団体の代表番号を###-####-####の形式で返してください。"
-        "所属住所郵便番号は、ハイフンありの7桁で返してください。"
-        "所属住所は、県名から番地まで可能な限り詳しく返してください。"
-        "URLは、会社や個人のウェブサイトがあれば返してください。" 
-        "複数ある場合、セミコロン(;)で区切ってください。" 
-        "もしURLがなければ空文字にしてください。"
-        "その他には、上記に含まれない重要な情報を簡潔にまとめてください。"
+        "あなたは名刺 OCR のテキスト抜粋から連絡先情報を整理するアシスタントです。"
+        "以下の JSON (paragraphs / tables / lines) を読み、必ず次のキーを持つ JSON を1つだけ返してください: "
+        "['名前','職業','電話番号','e-mail','所属','所属Tel','所属住所','その他']。"
+        "不明な項目は空文字列にしてください。電話番号は可能な限り形式を整えてください。"
+        "出力は JSON のみでその他の文章を含めないでください。"
     )
 
     try:
@@ -227,8 +264,8 @@ def call_gemini_summary(model: object, results_dict: Dict) -> Dict[str, str]:
 def generate_summary_fields(results: DocumentAnalyzerSchema, gemini_model: object | None) -> Dict[str, str]:
     if gemini_model is None:
         return extract_summary_fields_heuristic(results)
-    result_dict = results.model_dump()
-    return call_gemini_summary(gemini_model, result_dict)
+    payload = build_gemini_payload(results)
+    return call_gemini_summary(gemini_model, payload)
 
 SAMPLE_IMAGE_PATHS = [
     "static/in/demo.jpg",
