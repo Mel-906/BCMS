@@ -1,0 +1,560 @@
+{
+    "figures": [
+        {
+            "box": [
+                374,
+                223,
+                1917,
+                671
+            ],
+            "direction": "horizontal",
+            "order": 0,
+            "paragraphs": [
+                {
+                    "box": [
+                        377,
+                        243,
+                        1916,
+                        648
+                    ],
+                    "contents": "BATTLE QUEST\nSINGULÁATY",
+                    "direction": "horizontal",
+                    "order": 0,
+                    "role": "section_headings"
+                }
+            ]
+        },
+        {
+            "box": [
+                154,
+                3027,
+                617,
+                3500
+            ],
+            "direction": "horizontal",
+            "order": 5,
+            "paragraphs": []
+        },
+        {
+            "box": [
+                1703,
+                2878,
+                2142,
+                3377
+            ],
+            "direction": "horizontal",
+            "order": 8,
+            "paragraphs": [
+                {
+                    "box": [
+                        2094,
+                        3323,
+                        2148,
+                        3377
+                    ],
+                    "contents": "®",
+                    "direction": "horizontal",
+                    "order": 0,
+                    "role": null
+                }
+            ]
+        }
+    ],
+    "paragraphs": [
+        {
+            "box": [
+                358,
+                856,
+                1953,
+                1099
+            ],
+            "contents": "全国高等学校 AI アスリート選手権大会\nシンギュラリティバトルクエスト運営事務局",
+            "direction": "horizontal",
+            "order": 1,
+            "role": null
+        },
+        {
+            "box": [
+                740,
+                1372,
+                1502,
+                1716
+            ],
+            "contents": "インターン生(第三期)\n高島 湊斗\nTakashima Minato",
+            "direction": "horizontal",
+            "order": 2,
+            "role": null
+        },
+        {
+            "box": [
+                284,
+                2038,
+                2144,
+                2625
+            ],
+            "contents": "一般社団法人\n未来キッズコンテンツ総合研究所\n〒105-0001 東京都港区虎ノ門4-3-20 神谷町MTビル 14F\nTel:03-5404-3479\nFax:03-5859-5132",
+            "direction": "horizontal",
+            "order": 3,
+            "role": null
+        },
+        {
+            "box": [
+                225,
+                2655,
+                2145,
+                2750
+            ],
+            "contents": "E-mail: 2401_platinum.blonde@intern.singularitybattlequest.club",
+            "direction": "horizontal",
+            "order": 4,
+            "role": null
+        },
+        {
+            "box": [
+                635,
+                3420,
+                1090,
+                3498
+            ],
+            "contents": "大会公式サイト",
+            "direction": "horizontal",
+            "order": 6,
+            "role": null
+        },
+        {
+            "box": [
+                168,
+                3540,
+                1653,
+                3647
+            ],
+            "contents": "https://singularitybattlequest.club",
+            "direction": "horizontal",
+            "order": 7,
+            "role": null
+        },
+        {
+            "box": [
+                1734,
+                3384,
+                2097,
+                3455
+            ],
+            "contents": "第 029447号",
+            "direction": "horizontal",
+            "order": 9,
+            "role": null
+        }
+    ],
+    "tables": [],
+    "words": [
+        {
+            "content": "https://singularitybattlequest.club",
+            "det_score": 0.9094453835649879,
+            "direction": "horizontal",
+            "points": [
+                [
+                    163,
+                    3553
+                ],
+                [
+                    1653,
+                    3538
+                ],
+                [
+                    1654,
+                    3624
+                ],
+                [
+                    164,
+                    3639
+                ]
+            ],
+            "rec_score": 0.9997689723968506
+        },
+        {
+            "content": "大会公式サイト",
+            "det_score": 0.903666536461294,
+            "direction": "horizontal",
+            "points": [
+                [
+                    635,
+                    3426
+                ],
+                [
+                    1090,
+                    3420
+                ],
+                [
+                    1090,
+                    3492
+                ],
+                [
+                    636,
+                    3498
+                ]
+            ],
+            "rec_score": 0.9999731779098511
+        },
+        {
+            "content": "第 029447号",
+            "det_score": 0.9203873706537434,
+            "direction": "horizontal",
+            "points": [
+                [
+                    1730,
+                    3382
+                ],
+                [
+                    2099,
+                    3382
+                ],
+                [
+                    2099,
+                    3454
+                ],
+                [
+                    1730,
+                    3454
+                ]
+            ],
+            "rec_score": 0.8694778680801392
+        },
+        {
+            "content": "®",
+            "det_score": 0.7314081955881951,
+            "direction": "horizontal",
+            "points": [
+                [
+                    2103,
+                    3323
+                ],
+                [
+                    2148,
+                    3332
+                ],
+                [
+                    2138,
+                    3377
+                ],
+                [
+                    2094,
+                    3368
+                ]
+            ],
+            "rec_score": 0.2920399308204651
+        },
+        {
+            "content": "E-mail: 2401_platinum.blonde@intern.singularitybattlequest.club",
+            "det_score": 0.9068910193669402,
+            "direction": "horizontal",
+            "points": [
+                [
+                    220,
+                    2662
+                ],
+                [
+                    2143,
+                    2652
+                ],
+                [
+                    2143,
+                    2736
+                ],
+                [
+                    220,
+                    2746
+                ]
+            ],
+            "rec_score": 0.9962047338485718
+        },
+        {
+            "content": "Fax:03-5859-5132",
+            "det_score": 0.9237926797173938,
+            "direction": "horizontal",
+            "points": [
+                [
+                    1340,
+                    2533
+                ],
+                [
+                    2146,
+                    2533
+                ],
+                [
+                    2146,
+                    2619
+                ],
+                [
+                    1340,
+                    2619
+                ]
+            ],
+            "rec_score": 0.9998576641082764
+        },
+        {
+            "content": "Tel:03-5404-3479",
+            "det_score": 0.9077123975973895,
+            "direction": "horizontal",
+            "points": [
+                [
+                    1367,
+                    2434
+                ],
+                [
+                    2141,
+                    2434
+                ],
+                [
+                    2141,
+                    2513
+                ],
+                [
+                    1367,
+                    2513
+                ]
+            ],
+            "rec_score": 0.9997806549072266
+        },
+        {
+            "content": "〒105-0001 東京都港区虎ノ門4-3-20 神谷町MTビル 14F",
+            "det_score": 0.9157402262452512,
+            "direction": "horizontal",
+            "points": [
+                [
+                    287,
+                    2303
+                ],
+                [
+                    2138,
+                    2296
+                ],
+                [
+                    2138,
+                    2379
+                ],
+                [
+                    287,
+                    2387
+                ]
+            ],
+            "rec_score": 0.9947671890258789
+        },
+        {
+            "content": "未来キッズコンテンツ総合研究所",
+            "det_score": 0.9281642332786753,
+            "direction": "horizontal",
+            "points": [
+                [
+                    289,
+                    2162
+                ],
+                [
+                    2135,
+                    2154
+                ],
+                [
+                    2136,
+                    2267
+                ],
+                [
+                    290,
+                    2274
+                ]
+            ],
+            "rec_score": 0.9998325109481812
+        },
+        {
+            "content": "一般社団法人",
+            "det_score": 0.9200026719029025,
+            "direction": "horizontal",
+            "points": [
+                [
+                    291,
+                    2042
+                ],
+                [
+                    850,
+                    2037
+                ],
+                [
+                    851,
+                    2123
+                ],
+                [
+                    292,
+                    2128
+                ]
+            ],
+            "rec_score": 0.9999891519546509
+        },
+        {
+            "content": "Takashima Minato",
+            "det_score": 0.9059985339755866,
+            "direction": "horizontal",
+            "points": [
+                [
+                    806,
+                    1642
+                ],
+                [
+                    1424,
+                    1642
+                ],
+                [
+                    1424,
+                    1716
+                ],
+                [
+                    806,
+                    1716
+                ]
+            ],
+            "rec_score": 0.9999545812606812
+        },
+        {
+            "content": "高島 湊斗",
+            "det_score": 0.9215125036137426,
+            "direction": "horizontal",
+            "points": [
+                [
+                    828,
+                    1491
+                ],
+                [
+                    1424,
+                    1491
+                ],
+                [
+                    1424,
+                    1604
+                ],
+                [
+                    828,
+                    1604
+                ]
+            ],
+            "rec_score": 0.989534318447113
+        },
+        {
+            "content": "インターン生(第三期)",
+            "det_score": 0.8934576433049839,
+            "direction": "horizontal",
+            "points": [
+                [
+                    737,
+                    1369
+                ],
+                [
+                    1498,
+                    1369
+                ],
+                [
+                    1498,
+                    1446
+                ],
+                [
+                    737,
+                    1446
+                ]
+            ],
+            "rec_score": 0.999518096446991
+        },
+        {
+            "content": "シンギュラリティバトルクエスト運営事務局",
+            "det_score": 0.9237343791090213,
+            "direction": "horizontal",
+            "points": [
+                [
+                    351,
+                    1001
+                ],
+                [
+                    1948,
+                    998
+                ],
+                [
+                    1948,
+                    1092
+                ],
+                [
+                    351,
+                    1094
+                ]
+            ],
+            "rec_score": 0.9999172687530518
+        },
+        {
+            "content": "全国高等学校 AI アスリート選手権大会",
+            "det_score": 0.922497315767264,
+            "direction": "horizontal",
+            "points": [
+                [
+                    450,
+                    859
+                ],
+                [
+                    1849,
+                    859
+                ],
+                [
+                    1849,
+                    950
+                ],
+                [
+                    450,
+                    950
+                ]
+            ],
+            "rec_score": 0.944607675075531
+        },
+        {
+            "content": "BATTLE QUEST",
+            "det_score": 0.8115973271938808,
+            "direction": "horizontal",
+            "points": [
+                [
+                    865,
+                    536
+                ],
+                [
+                    1441,
+                    531
+                ],
+                [
+                    1441,
+                    615
+                ],
+                [
+                    866,
+                    620
+                ]
+            ],
+            "rec_score": 0.9279291033744812
+        },
+        {
+            "content": "SINGULÁATY",
+            "det_score": 0.6785720571511986,
+            "direction": "horizontal",
+            "points": [
+                [
+                    405,
+                    311
+                ],
+                [
+                    1887,
+                    304
+                ],
+                [
+                    1889,
+                    598
+                ],
+                [
+                    407,
+                    606
+                ]
+            ],
+            "rec_score": 0.18576893210411072
+        }
+    ]
+}

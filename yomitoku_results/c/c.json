@@ -1,0 +1,380 @@
+{
+    "figures": [],
+    "paragraphs": [
+        {
+            "box": [
+                222,
+                331,
+                522,
+                437
+            ],
+            "contents": "PKSHA\nTECHNOLOGY",
+            "direction": "horizontal",
+            "order": 0,
+            "role": null
+        },
+        {
+            "box": [
+                721,
+                176,
+                995,
+                240
+            ],
+            "contents": "Al Solution 事業本部\nアルゴリズムエンジニア",
+            "direction": "horizontal",
+            "order": 1,
+            "role": null
+        },
+        {
+            "box": [
+                722,
+                254,
+                914,
+                301
+            ],
+            "contents": "福永 開",
+            "direction": "horizontal",
+            "order": 2,
+            "role": null
+        },
+        {
+            "box": [
+                723,
+                325,
+                928,
+                346
+            ],
+            "contents": "KAI FUKUNAGA",
+            "direction": "horizontal",
+            "order": 3,
+            "role": null
+        },
+        {
+            "box": [
+                722,
+                391,
+                1156,
+                468
+            ],
+            "contents": "kai_fukunaga@pkshatech.com\n03-6801-6718",
+            "direction": "horizontal",
+            "order": 4,
+            "role": null
+        },
+        {
+            "box": [
+                722,
+                526,
+                1154,
+                558
+            ],
+            "contents": "株式会社 PKSHA Technology",
+            "direction": "horizontal",
+            "order": 5,
+            "role": null
+        },
+        {
+            "box": [
+                722,
+                581,
+                1037,
+                685
+            ],
+            "contents": "〒113-0033\n東京都文京区本郷2-35-10\n本郷瀬川ビル4F (受付5F)",
+            "direction": "horizontal",
+            "order": 6,
+            "role": null
+        }
+    ],
+    "tables": [],
+    "words": [
+        {
+            "content": "本郷瀬川ビル4F (受付5F)",
+            "det_score": 0.9015225677356047,
+            "direction": "horizontal",
+            "points": [
+                [
+                    721,
+                    656
+                ],
+                [
+                    1035,
+                    654
+                ],
+                [
+                    1036,
+                    683
+                ],
+                [
+                    721,
+                    684
+                ]
+            ],
+            "rec_score": 0.9542703032493591
+        },
+        {
+            "content": "東京都文京区本郷2-35-10",
+            "det_score": 0.9132977483464819,
+            "direction": "horizontal",
+            "points": [
+                [
+                    723,
+                    617
+                ],
+                [
+                    1036,
+                    617
+                ],
+                [
+                    1036,
+                    645
+                ],
+                [
+                    723,
+                    645
+                ]
+            ],
+            "rec_score": 0.999862790107727
+        },
+        {
+            "content": "〒113-0033",
+            "det_score": 0.9090178324825389,
+            "direction": "horizontal",
+            "points": [
+                [
+                    724,
+                    578
+                ],
+                [
+                    873,
+                    578
+                ],
+                [
+                    873,
+                    606
+                ],
+                [
+                    724,
+                    606
+                ]
+            ],
+            "rec_score": 0.9994770884513855
+        },
+        {
+            "content": "株式会社 PKSHA Technology",
+            "det_score": 0.9050778331591918,
+            "direction": "horizontal",
+            "points": [
+                [
+                    720,
+                    523
+                ],
+                [
+                    1153,
+                    525
+                ],
+                [
+                    1153,
+                    557
+                ],
+                [
+                    720,
+                    555
+                ]
+            ],
+            "rec_score": 0.9998337030410767
+        },
+        {
+            "content": "03-6801-6718",
+            "det_score": 0.890448397074792,
+            "direction": "horizontal",
+            "points": [
+                [
+                    721,
+                    438
+                ],
+                [
+                    937,
+                    436
+                ],
+                [
+                    938,
+                    466
+                ],
+                [
+                    721,
+                    468
+                ]
+            ],
+            "rec_score": 0.9996054172515869
+        },
+        {
+            "content": "TECHNOLOGY",
+            "det_score": 0.8941735151841882,
+            "direction": "horizontal",
+            "points": [
+                [
+                    247,
+                    408
+                ],
+                [
+                    489,
+                    406
+                ],
+                [
+                    489,
+                    436
+                ],
+                [
+                    247,
+                    438
+                ]
+            ],
+            "rec_score": 0.9992392063140869
+        },
+        {
+            "content": "kai_fukunaga@pkshatech.com",
+            "det_score": 0.8996796716912008,
+            "direction": "horizontal",
+            "points": [
+                [
+                    720,
+                    391
+                ],
+                [
+                    1156,
+                    390
+                ],
+                [
+                    1157,
+                    422
+                ],
+                [
+                    720,
+                    424
+                ]
+            ],
+            "rec_score": 0.999675989151001
+        },
+        {
+            "content": "PKSHA",
+            "det_score": 0.8818330888480481,
+            "direction": "horizontal",
+            "points": [
+                [
+                    224,
+                    332
+                ],
+                [
+                    516,
+                    334
+                ],
+                [
+                    516,
+                    387
+                ],
+                [
+                    224,
+                    385
+                ]
+            ],
+            "rec_score": 0.9282532334327698
+        },
+        {
+            "content": "KAI FUKUNAGA",
+            "det_score": 0.8612617066104291,
+            "direction": "horizontal",
+            "points": [
+                [
+                    721,
+                    322
+                ],
+                [
+                    927,
+                    322
+                ],
+                [
+                    927,
+                    348
+                ],
+                [
+                    721,
+                    348
+                ]
+            ],
+            "rec_score": 0.9995148777961731
+        },
+        {
+            "content": "福永 開",
+            "det_score": 0.8817021853879475,
+            "direction": "horizontal",
+            "points": [
+                [
+                    724,
+                    256
+                ],
+                [
+                    911,
+                    256
+                ],
+                [
+                    911,
+                    297
+                ],
+                [
+                    724,
+                    297
+                ]
+            ],
+            "rec_score": 0.9942482113838196
+        },
+        {
+            "content": "アルゴリズムエンジニア",
+            "det_score": 0.9089520858426088,
+            "direction": "horizontal",
+            "points": [
+                [
+                    723,
+                    210
+                ],
+                [
+                    995,
+                    210
+                ],
+                [
+                    995,
+                    241
+                ],
+                [
+                    723,
+                    241
+                ]
+            ],
+            "rec_score": 0.9999619722366333
+        },
+        {
+            "content": "Al Solution 事業本部",
+            "det_score": 0.9069431916846857,
+            "direction": "horizontal",
+            "points": [
+                [
+                    720,
+                    175
+                ],
+                [
+                    967,
+                    174
+                ],
+                [
+                    967,
+                    202
+                ],
+                [
+                    720,
+                    204
+                ]
+            ],
+            "rec_score": 0.8447815775871277
+        }
+    ]
+}

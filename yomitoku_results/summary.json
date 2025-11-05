@@ -1,0 +1,20 @@
+[
+  {
+    "image": "/home/cs25009/BCMS/photo/g.jpg",
+    "outputs": {
+      "json": "yomitoku_results/g/g.json",
+      "md": "yomitoku_results/g/g.md",
+      "html": "yomitoku_results/g/g.html",
+      "csv": "yomitoku_results/g/g.csv"
+    },
+    "paragraphs": 7,
+    "tables": 0,
+    "figures": 3,
+    "words": 17,
+    "elapsed_seconds": 49.351,
+    "visualizations": {
+      "ocr": "yomitoku_results/g/g_ocr.jpg",
+      "layout": "yomitoku_results/g/g_layout.jpg"
+    }
+  }
+]

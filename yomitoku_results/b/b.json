@@ -1,0 +1,440 @@
+{
+    "figures": [
+        {
+            "box": [
+                12,
+                0,
+                1276,
+                754
+            ],
+            "direction": "horizontal",
+            "order": 0,
+            "paragraphs": [
+                {
+                    "box": [
+                        74,
+                        92,
+                        713,
+                        154
+                    ],
+                    "contents": "GifTs - Group Maneger",
+                    "direction": "horizontal",
+                    "order": 0,
+                    "role": "section_headings"
+                },
+                {
+                    "box": [
+                        135,
+                        210,
+                        564,
+                        344
+                    ],
+                    "contents": "榊 実礼",
+                    "direction": "horizontal",
+                    "order": 1,
+                    "role": "section_headings"
+                },
+                {
+                    "box": [
+                        940,
+                        233,
+                        1072,
+                        263
+                    ],
+                    "contents": "My Profile",
+                    "direction": "horizontal",
+                    "order": 2,
+                    "role": null
+                },
+                {
+                    "box": [
+                        664,
+                        278,
+                        1108,
+                        336
+                    ],
+                    "contents": "Mirai Sakaki",
+                    "direction": "horizontal",
+                    "order": 3,
+                    "role": null
+                },
+                {
+                    "box": [
+                        133,
+                        432,
+                        629,
+                        478
+                    ],
+                    "contents": "デジタル広報、Global R&D/",
+                    "direction": "horizontal",
+                    "order": 4,
+                    "role": null
+                },
+                {
+                    "box": [
+                        134,
+                        481,
+                        855,
+                        557
+                    ],
+                    "contents": "Digital and Public Relations, Global R&D\n(GifTs ID : S000002)",
+                    "direction": "horizontal",
+                    "order": 5,
+                    "role": null
+                },
+                {
+                    "box": [
+                        137,
+                        571,
+                        568,
+                        602
+                    ],
+                    "contents": "中央大学 経済学部公共 ·環境経済学科/",
+                    "direction": "horizontal",
+                    "order": 6,
+                    "role": null
+                },
+                {
+                    "box": [
+                        138,
+                        601,
+                        1179,
+                        635
+                    ],
+                    "contents": "Department of Public and Environmental Economics, Faculty of Economics, Chuo University",
+                    "direction": "horizontal",
+                    "order": 7,
+                    "role": null
+                },
+                {
+                    "box": [
+                        137,
+                        639,
+                        498,
+                        671
+                    ],
+                    "contents": "Mail : shenshill723@gmail.com",
+                    "direction": "horizontal",
+                    "order": 8,
+                    "role": null
+                },
+                {
+                    "box": [
+                        138,
+                        674,
+                        693,
+                        707
+                    ],
+                    "contents": "URL : https://sites.google.com/view/gifts-foryou",
+                    "direction": "horizontal",
+                    "order": 9,
+                    "role": null
+                },
+                {
+                    "box": [
+                        1039,
+                        669,
+                        1260,
+                        733
+                    ],
+                    "contents": "for you.",
+                    "direction": "horizontal",
+                    "order": 10,
+                    "role": null
+                }
+            ]
+        }
+    ],
+    "paragraphs": [],
+    "tables": [],
+    "words": [
+        {
+            "content": "for you.",
+            "det_score": 0.7971690966663236,
+            "direction": "horizontal",
+            "points": [
+                [
+                    1039,
+                    673
+                ],
+                [
+                    1261,
+                    675
+                ],
+                [
+                    1260,
+                    727
+                ],
+                [
+                    1039,
+                    726
+                ]
+            ],
+            "rec_score": 0.987719714641571
+        },
+        {
+            "content": "URL : https://sites.google.com/view/gifts-foryou",
+            "det_score": 0.9007078463850985,
+            "direction": "horizontal",
+            "points": [
+                [
+                    136,
+                    674
+                ],
+                [
+                    691,
+                    673
+                ],
+                [
+                    691,
+                    705
+                ],
+                [
+                    136,
+                    705
+                ]
+            ],
+            "rec_score": 0.9389808773994446
+        },
+        {
+            "content": "Mail : shenshill723@gmail.com",
+            "det_score": 0.8963351206788926,
+            "direction": "horizontal",
+            "points": [
+                [
+                    137,
+                    638
+                ],
+                [
+                    496,
+                    638
+                ],
+                [
+                    496,
+                    668
+                ],
+                [
+                    137,
+                    668
+                ]
+            ],
+            "rec_score": 0.8519741296768188
+        },
+        {
+            "content": "Department of Public and Environmental Economics, Faculty of Economics, Chuo University",
+            "det_score": 0.8924700241970865,
+            "direction": "horizontal",
+            "points": [
+                [
+                    136,
+                    603
+                ],
+                [
+                    1178,
+                    600
+                ],
+                [
+                    1178,
+                    630
+                ],
+                [
+                    136,
+                    633
+                ]
+            ],
+            "rec_score": 0.9988764524459839
+        },
+        {
+            "content": "中央大学 経済学部公共 ·環境経済学科/",
+            "det_score": 0.9180447015856287,
+            "direction": "horizontal",
+            "points": [
+                [
+                    136,
+                    572
+                ],
+                [
+                    567,
+                    571
+                ],
+                [
+                    567,
+                    599
+                ],
+                [
+                    136,
+                    600
+                ]
+            ],
+            "rec_score": 0.2652466893196106
+        },
+        {
+            "content": "(GifTs ID : S000002)",
+            "det_score": 0.8879586272639935,
+            "direction": "horizontal",
+            "points": [
+                [
+                    136,
+                    524
+                ],
+                [
+                    362,
+                    524
+                ],
+                [
+                    362,
+                    554
+                ],
+                [
+                    136,
+                    554
+                ]
+            ],
+            "rec_score": 0.6769528985023499
+        },
+        {
+            "content": "Digital and Public Relations, Global R&D",
+            "det_score": 0.9005401719780639,
+            "direction": "horizontal",
+            "points": [
+                [
+                    134,
+                    487
+                ],
+                [
+                    852,
+                    483
+                ],
+                [
+                    852,
+                    521
+                ],
+                [
+                    135,
+                    525
+                ]
+            ],
+            "rec_score": 0.9995354413986206
+        },
+        {
+            "content": "デジタル広報、Global R&D/",
+            "det_score": 0.9049320926270396,
+            "direction": "horizontal",
+            "points": [
+                [
+                    134,
+                    435
+                ],
+                [
+                    624,
+                    435
+                ],
+                [
+                    624,
+                    474
+                ],
+                [
+                    134,
+                    474
+                ]
+            ],
+            "rec_score": 0.999700665473938
+        },
+        {
+            "content": "Mirai Sakaki",
+            "det_score": 0.898518749836948,
+            "direction": "horizontal",
+            "points": [
+                [
+                    664,
+                    281
+                ],
+                [
+                    1108,
+                    278
+                ],
+                [
+                    1108,
+                    333
+                ],
+                [
+                    664,
+                    336
+                ]
+            ],
+            "rec_score": 0.9997437000274658
+        },
+        {
+            "content": "My Profile",
+            "det_score": 0.9089620903606329,
+            "direction": "horizontal",
+            "points": [
+                [
+                    939,
+                    233
+                ],
+                [
+                    1071,
+                    231
+                ],
+                [
+                    1071,
+                    261
+                ],
+                [
+                    939,
+                    263
+                ]
+            ],
+            "rec_score": 0.9999167919158936
+        },
+        {
+            "content": "榊 実礼",
+            "det_score": 0.851613053967652,
+            "direction": "horizontal",
+            "points": [
+                [
+                    139,
+                    218
+                ],
+                [
+                    563,
+                    220
+                ],
+                [
+                    563,
+                    338
+                ],
+                [
+                    138,
+                    336
+                ]
+            ],
+            "rec_score": 0.9641906023025513
+        },
+        {
+            "content": "GifTs - Group Maneger",
+            "det_score": 0.8589983005420846,
+            "direction": "horizontal",
+            "points": [
+                [
+                    72,
+                    97
+                ],
+                [
+                    710,
+                    100
+                ],
+                [
+                    709,
+                    150
+                ],
+                [
+                    72,
+                    146
+                ]
+            ],
+            "rec_score": 0.9540854096412659
+        }
+    ]
+}
