@@ -1,1 +1,0 @@
-<img src="figures/b_figure_0.png" width="200px"><br>

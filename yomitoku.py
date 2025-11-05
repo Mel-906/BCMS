@@ -12,13 +12,15 @@ article's CLI walkthrough in Python code.
 from __future__ import annotations
 
 import argparse
+import csv
 import importlib.util
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Dict, List, Sequence, Set
 
 import cv2
 import numpy as np
@@ -55,6 +57,178 @@ from yomitoku.document_analyzer import DocumentAnalyzerSchema
 from yomitoku.export import export_csv, export_html, export_json, export_markdown
 
 SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
+
+SUMMARY_HEADERS = ["名前", "職業", "電話番号", "e-mail", "所属", "所属Tel", "所属住所", "その他"]
+GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
+GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
+GEMINI_ENV_FILE = Path(".env.local")
+GEMINI_MODEL_INSTANCE = None
+
+EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+URL_PATTERN = re.compile(r"(?:https?://|www\.)[^\s<>]+")
+POSTAL_PATTERN = re.compile(r"〒?\d{3}-?\d{4}")
+PHONE_PATTERN = re.compile(r"(?=(?:.*?\d){7,})(?:\+?\d[\d\-\s()]{7,}\d)")
+
+COMPANY_KEYWORDS = [
+    "株式会社",
+    "有限会社",
+    "合同会社",
+    "Inc",
+    "Co.",
+    "Company",
+    "Corporation",
+    "University",
+    "College",
+    "School",
+    "Institute",
+]
+
+OCCUPATION_KEYWORDS = [
+    "部長",
+    "課長",
+    "主任",
+    "代表",
+    "社長",
+    "取締役",
+    "マネージャ",
+    "Manager",
+    "Engineer",
+    "Sales",
+    "Consultant",
+    "Professor",
+    "研究員",
+    "担当",
+]
+
+ADDRESS_KEYWORDS = [
+    "都",
+    "道",
+    "府",
+    "県",
+    "市",
+    "区",
+    "町",
+    "村",
+    "丁目",
+    "番地",
+    "号",
+]
+
+KANJI_PATTERN = re.compile(r"^[\u4e00-\u9fff々〆ヶ]{2,6}$")
+ROMAN_NAME_PATTERN = re.compile(r"^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+$")
+
+
+def load_env_local(path: Path = GEMINI_ENV_FILE) -> Dict[str, str]:
+    env: Dict[str, str] = {}
+    if not path.exists():
+        return env
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key:
+            env[key] = value
+            os.environ.setdefault(key, value)
+    return env
+
+
+def initialize_gemini(model_name: str) -> object | None:
+    load_env_local()
+    api_key = os.getenv(GEMINI_API_KEY_ENV)
+    if not api_key:
+        raise RuntimeError(
+            f"Environment variable {GEMINI_API_KEY_ENV} is not set. Configure it in env.local."
+        )
+
+    try:
+        import google.generativeai as genai  # type: ignore
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise RuntimeError(
+            "google-generativeai is not installed. Run `uv pip install google-generativeai`."
+        ) from exc
+
+    try:
+        genai.configure(api_key=api_key)
+        return genai.GenerativeModel(model_name)
+    except Exception as exc:  # pragma: no cover - api init
+        raise RuntimeError(f"Failed to initialize Gemini model: {exc}") from exc
+
+
+def _extract_json_from_text(text: str) -> Dict[str, str] | None:
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        return None
+    snippet = match.group(0)
+    try:
+        data = json.loads(snippet)
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        return None
+    return None
+
+
+def call_gemini_summary(model: object, results_dict: Dict) -> Dict[str, str]:
+    payload = json.dumps(results_dict, ensure_ascii=False)
+    prompt = (
+        "あなたはOCRで抽出された名刺情報から連絡先を整理するアシスタントです。" 
+        "以下のJSONを読み取り、次のキーを持つJSONオブジェクトを必ず1つ返してください:"
+        "['名前','職業','Tel','e-mail','所属','代表Tel','所属住所郵便番号','所属住所','URL','その他']。"
+        "不明な項目は空文字にしてください。出力はJSONのみで他の文章を含めないでください。"
+        "名前はフルネームで返してください。"
+        "職業はなるべく具体的に返してください。"
+        "大学生や高校生の場合は、職業は学生としてください。"
+        "Telは、###-####-####の形式で返してください。" 
+        "Telは、直通を優先してください。"
+        "e-mailは複数ある場合、セミコロン(;)で区切ってください。"
+        "所属はなるべく長く、正式名称で返してください。"
+        "所属は、会社名、団体名、学校名などを含みます。"
+        "所属は、部署名まで含んでください。"
+        "代表Telは、会社や団体の代表番号を###-####-####の形式で返してください。"
+        "所属住所郵便番号は、ハイフンありの7桁で返してください。"
+        "所属住所は、県名から番地まで可能な限り詳しく返してください。"
+        "URLは、会社や個人のウェブサイトがあれば返してください。" 
+        "複数ある場合、セミコロン(;)で区切ってください。" 
+        "もしURLがなければ空文字にしてください。"
+        "その他には、上記に含まれない重要な情報を簡潔にまとめてください。"
+    )
+
+    try:
+        response = model.generate_content([
+            {"text": prompt},
+            {"text": payload},
+        ])
+    except Exception as exc:  # pragma: no cover - network
+        raise RuntimeError(f"Gemini request failed: {exc}") from exc
+
+    text = getattr(response, "text", None)
+    if not text:
+        raise RuntimeError("Gemini response did not contain text output.")
+
+    parsed = _extract_json_from_text(text)
+    if not parsed:
+        raise RuntimeError("Could not parse JSON from Gemini response.")
+
+    result: Dict[str, str] = {}
+    for key in SUMMARY_HEADERS:
+        value = parsed.get(key, "") if isinstance(parsed, dict) else ""
+        if value is None:
+            value = ""
+        result[key] = str(value)
+    return result
+
+
+def generate_summary_fields(results: DocumentAnalyzerSchema, gemini_model: object | None) -> Dict[str, str]:
+    if gemini_model is None:
+        return extract_summary_fields_heuristic(results)
+    result_dict = results.model_dump()
+    return call_gemini_summary(gemini_model, result_dict)
 
 SAMPLE_IMAGE_PATHS = [
     "static/in/demo.jpg",
@@ -219,6 +393,9 @@ def export_results(
 ) -> Dict[str, Path]:
     outputs: Dict[str, Path] = {}
 
+    if not formats:
+        return outputs
+
     base_path.mkdir(parents=True, exist_ok=True)
     stem = base_path.name
     image_arg = image_bgr if export_figure else None
@@ -273,6 +450,206 @@ def export_results(
     return outputs
 
 
+def normalize_lines(text: str) -> List[str]:
+    text = text.replace("<br>", "\n").replace("<BR>", "\n")
+    parts = re.split(r"[\r\n]+", text)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def extract_lines(results: DocumentAnalyzerSchema) -> List[str]:
+    lines: List[str] = []
+    seen: Set[str] = set()
+
+    def add_line(line: str) -> None:
+        normalized = line.strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            lines.append(normalized)
+
+    for paragraph in results.paragraphs:
+        for line in normalize_lines(paragraph.contents):
+            add_line(line)
+
+    for table in results.tables:
+        for cell in table.cells:
+            if cell.contents:
+                for line in normalize_lines(cell.contents):
+                    add_line(line)
+
+    for word in results.words:
+        content = getattr(word, "content", "") or getattr(word, "contents", "")
+        if content:
+            add_line(content)
+
+    return lines
+
+
+def extract_emails(lines: List[str]) -> List[str]:
+    emails: Set[str] = set()
+    for line in lines:
+        for match in EMAIL_PATTERN.findall(line):
+            emails.add(match)
+    return sorted(emails)
+
+
+def normalize_phone(number: str) -> str:
+    digits = re.sub(r"[^\d+]", "", number)
+    if digits.startswith("00"):
+        digits = "+" + digits.lstrip("0")
+    return digits
+
+
+def extract_phones(lines: List[str]) -> List[Dict[str, object]]:
+    phones: List[Dict[str, object]] = []
+    for idx, line in enumerate(lines):
+        for match in PHONE_PATTERN.findall(line):
+            normalized = normalize_phone(match)
+            digits = re.sub(r"\D", "", normalized)
+            if 9 <= len(digits) <= 15:
+                phones.append({"value": normalized, "line_index": idx, "line": line})
+    return phones
+
+
+def extract_postal_code(lines: List[str]) -> str | None:
+    for line in lines:
+        match = POSTAL_PATTERN.search(line)
+        if match:
+            code = match.group(0).replace("〒", "")
+            if "-" not in code and len(code) == 7:
+                code = code[:3] + "-" + code[3:]
+            return code
+    return None
+
+
+def extract_address(lines: List[str]) -> str | None:
+    for line in lines:
+        if "〒" in line:
+            return line.replace("〒", "").strip()
+    for line in lines:
+        if any(keyword in line for keyword in ADDRESS_KEYWORDS) and any(ch.isdigit() for ch in line):
+            return line
+    return None
+
+
+def extract_company(lines: List[str]) -> str | None:
+    for line in lines:
+        if any(keyword in line for keyword in COMPANY_KEYWORDS):
+            return line
+    return None
+
+
+def extract_name(lines: List[str]) -> str | None:
+    for line in lines:
+        candidate = line.replace("様", "").strip()
+        if KANJI_PATTERN.fullmatch(candidate):
+            return candidate
+        if ROMAN_NAME_PATTERN.fullmatch(candidate):
+            return candidate
+        parts = candidate.split()
+        if 1 < len(parts) <= 3 and all(part and part[0].isupper() for part in parts if part):
+            return candidate
+    return None
+
+
+def extract_occupation(lines: List[str]) -> str | None:
+    for line in lines:
+        for keyword in OCCUPATION_KEYWORDS:
+            if keyword in line:
+                return line
+    return None
+
+
+def extract_summary_fields_heuristic(results: DocumentAnalyzerSchema) -> Dict[str, str]:
+    lines = extract_lines(results)
+    used: Set[int] = set()
+
+    name = extract_name(lines)
+    if name is not None:
+        used.add(lines.index(name))
+
+    occupation = extract_occupation(lines)
+    if occupation is not None:
+        used.add(lines.index(occupation))
+
+    company = extract_company(lines)
+    if company is not None:
+        used.add(lines.index(company))
+
+    address = extract_address(lines)
+    postal_code = extract_postal_code(lines)
+    if address is not None:
+        address_index = None
+        for idx, line in enumerate(lines):
+            compact = line.replace("〒", "").strip()
+            if compact == address or address in compact:
+                address_index = idx
+                break
+        if address_index is not None:
+            used.add(address_index)
+    if postal_code:
+        for idx, line in enumerate(lines):
+            if postal_code in line.replace("〒", "").replace("-", ""):
+                used.add(idx)
+
+    emails = extract_emails(lines)
+    for email in emails:
+        for idx, line in enumerate(lines):
+            if email in line:
+                used.add(idx)
+                break
+
+    phone_entries = extract_phones(lines)
+    personal_phone = ""
+    company_phone = ""
+    for entry in phone_entries:
+        idx = entry["line_index"]
+        line_lower = entry["line"].lower()
+        value = entry["value"]
+        if personal_phone and company_phone:
+            break
+        if any(keyword in line_lower for keyword in ["tel", "電話", "company", "office", "代表"]):
+            if not company_phone:
+                company_phone = value
+                used.add(idx)
+                continue
+        if any(keyword in line_lower for keyword in ["携帯", "mobile", "cell"]):
+            if not personal_phone:
+                personal_phone = value
+                used.add(idx)
+                continue
+        if not personal_phone:
+            personal_phone = value
+            used.add(idx)
+        elif not company_phone:
+            company_phone = value
+            used.add(idx)
+
+    remaining_lines: List[str] = []
+    for idx, line in enumerate(lines):
+        if idx not in used:
+            remaining_lines.append(line)
+
+    other = " / ".join(remaining_lines[:10])
+
+    if postal_code and address and postal_code not in address:
+        address_value = f"〒{postal_code} {address}"
+    elif postal_code and not address:
+        address_value = f"〒{postal_code}"
+    else:
+        address_value = address or ""
+
+    return {
+        "名前": name or "",
+        "職業": occupation or "",
+        "電話番号": personal_phone,
+        "e-mail": ";".join(emails),
+        "所属": company or "",
+        "所属Tel": company_phone,
+        "所属住所": address_value,
+        "その他": other,
+    }
+
+
 def run_analysis(
     analyzer: DocumentAnalyzer,
     image_path: Path,
@@ -285,7 +662,9 @@ def run_analysis(
 ) -> Dict[str, object]:
     image_bgr = load_bgr_image(image_path)
     output_dir = output_root / image_path.stem
-    output_dir.mkdir(parents=True, exist_ok=True)
+    need_dir = bool(formats) or visualize
+    if need_dir:
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     start = time.perf_counter()
     results, ocr_vis, layout_vis = analyzer(image_bgr)
@@ -303,6 +682,8 @@ def run_analysis(
 
     vis_paths: Dict[str, Path] = {}
     if visualize:
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True, exist_ok=True)
         ocr_path = output_dir / f"{image_path.stem}_ocr.jpg"
         layout_path = output_dir / f"{image_path.stem}_layout.jpg"
         save_bgr_image(ocr_vis, ocr_path)
@@ -322,6 +703,9 @@ def run_analysis(
 
     if visualize and vis_paths:
         report["visualizations"] = {key: str(path) for key, path in vis_paths.items()}
+
+    summary_fields = generate_summary_fields(results, GEMINI_MODEL_INSTANCE)
+    report["summary"] = summary_fields
 
     return report
 
@@ -346,9 +730,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--formats",
         nargs="+",
-        default=["html", "json", "md", "csv"],
+        default=[],
         choices=["html", "json", "md", "csv"],
-        help="File formats to export.",
+        help="Per-image file formats to export.",
     )
     parser.add_argument(
         "--device",
@@ -413,12 +797,33 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Limit the number of images processed (useful for quick smoke tests).",
     )
+    parser.add_argument(
+        "--gemini-model",
+        default=GEMINI_DEFAULT_MODEL,
+        help="Gemini model name to use for contact extraction (requires GEMINI_API_KEY).",
+    )
+    parser.add_argument(
+        "--disable-gemini",
+        action="store_true",
+        help="Disable Gemini-assisted summarization and use heuristic extraction only.",
+    )
 
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    global GEMINI_MODEL_INSTANCE
+
+    if args.disable_gemini:
+        GEMINI_MODEL_INSTANCE = None
+    else:
+        try:
+            GEMINI_MODEL_INSTANCE = initialize_gemini(args.gemini_model)
+            print(f"[INFO] Gemini model '{args.gemini_model}' initialized for summary extraction.")
+        except RuntimeError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            sys.exit(1)
 
     input_paths: List[Path] = [Path(p) for p in args.inputs]
 
@@ -461,25 +866,40 @@ def main() -> None:
     )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    reports: List[Dict[str, object]] = []
+    summary_csv_path = args.output_dir / "summary.csv"
+    with summary_csv_path.open("w", encoding="utf-8", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=SUMMARY_HEADERS)
+        writer.writeheader()
 
-    for image_path in image_paths:
-        print(f"[INFO] Processing {image_path}")
-        report = run_analysis(
-            analyzer,
-            image_path,
-            args.output_dir,
-            args.formats,
-            args.ignore_line_break,
-            args.export_figures,
-            args.export_figure_letter,
-            args.visualize,
-        )
-        reports.append(report)
-
-    summary_path = args.output_dir / "summary.json"
-    summary_path.write_text(json.dumps(reports, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[INFO] Saved summary report to {summary_path}")
+        for image_path in image_paths:
+            print(f"[INFO] Processing {image_path}")
+            report = run_analysis(
+                analyzer,
+                image_path,
+                args.output_dir,
+                args.formats,
+                args.ignore_line_break,
+                args.export_figures,
+                args.export_figure_letter,
+                args.visualize,
+            )
+            summary_row = {header: report.get("summary", {}).get(header, "") for header in SUMMARY_HEADERS}
+            writer.writerow(summary_row)
+            csvfile.flush()
+            print(
+                json.dumps(
+                    {
+                        "image": report["image"],
+                        "paragraphs": report["paragraphs"],
+                        "tables": report["tables"],
+                        "figures": report["figures"],
+                        "words": report["words"],
+                        "elapsed_seconds": report["elapsed_seconds"],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+    print(f"[INFO] Saved summary CSV to {summary_csv_path}")
 
 
 if __name__ == "__main__":

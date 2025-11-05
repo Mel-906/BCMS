@@ -24,6 +24,19 @@ uv run ocr-local path/to/images --device auto --jsonl-output results.jsonl
 
 `--model-name` オプションで手書き向けモデル（例: `microsoft/trocr-base-handwritten`）に切り替えられます。抽出結果は `company`/`person`/`title`/`phone_numbers`/`email_addresses` など名刺で頻出するフィールドに整理されます。
 
+## 画像の前処理
+
+OCR 前にノイズ除去やコントラスト補正を施したい場合は、同梱の前処理スクリプトを利用できます。
+
+```bash
+uv run python preprocess_images.py photo --output-dir photo_preprocessed
+```
+
+- EXIF に基づき向きを補正します。
+- 短辺 720px 未満の画像は自動でリサイズされます。
+- カラーノイズ除去、CLAHE による局所コントラスト改善、アンシャープマスク、ガンマ補正を段階的に適用します。
+- `photo_preprocessed` に処理済み画像が生成されるため、このフォルダを `yomitoku.py` などに渡すと安定した OCR 結果が得られやすくなります。
+
 ## DeepSeek OCR Runner
 
 ```bash
