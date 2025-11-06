@@ -118,7 +118,7 @@ def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, bool]:
         255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY_INV,
-        35,
+        99,
         5,
     )
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
