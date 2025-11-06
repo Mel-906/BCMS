@@ -35,4 +35,4 @@ build-backend = "hatchling.build"
 package = true
 
 [tool.hatch.build.targets.wheel]
-include = ["ocr_local.py"]
+include = ["ocr_local.py", "supabase_utils.py"]
