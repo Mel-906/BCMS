@@ -133,12 +133,22 @@ export default async function ProjectsPage() {
                       </span>
                     </div>
                   </Link>
-                  <form action={deleteProject.bind(null, project.id)} method="post" style={{ marginTop: "0.75rem" }}>
-                    <button
-                      type="submit"
-                      style={{
-                        background: "rgba(248, 113, 113, 0.15)",
-                        color: "#b91c1c",
+                <form
+                  action={deleteProject.bind(null, project.id)}
+                  method="post"
+                  style={{ marginTop: "0.75rem" }}
+                  onSubmit={(event) => {
+                    const confirmed = window.confirm("このプロジェクトを削除します。関連する名刺データも削除されます。よろしいですか？");
+                    if (!confirmed) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  <button
+                    type="submit"
+                    style={{
+                      background: "rgba(248, 113, 113, 0.15)",
+                      color: "#b91c1c",
                         border: "none",
                         borderRadius: "12px",
                         padding: "0.5rem 0.9rem",
