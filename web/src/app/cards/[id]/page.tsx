@@ -106,6 +106,12 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
   }
 
   const filename = card.sourceImage.original_filename ?? "名刺";
+  const primaryName =
+    card.summaryFields?.["名前"]?.trim() ||
+    card.summaryFields?.["名前（英語）"]?.trim() ||
+    card.summaryFields?.["その他"]?.split(/\r?\n/).find((line) => line.trim())?.trim() ||
+    null;
+  const pageTitle = primaryName ?? filename;
 
   const imageUrl = card.imageUrl;
 
@@ -117,7 +123,7 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
 
       <header style={{ display: "grid", gap: "0.6rem" }}>
         <h1 className="dashboard__title" style={{ margin: 0 }}>
-          {filename}
+          {pageTitle}
         </h1>
         <p className="muted-text">
           アップロード: {new Date(card.sourceImage.created_at).toLocaleString()} / 最新更新:{" "}

@@ -13,6 +13,7 @@ type SelectedItem = {
   key: string;
   file: File;
   previewUrl?: string;
+  rotation: number;
   source: "camera" | "upload";
   revokePreview?: boolean;
 };
@@ -26,6 +27,7 @@ export function ScanForm({ projects }: ScanFormProps) {
   const [message, setMessage] = useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => projects[0]?.id ?? "");
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const [rotatingId, setRotatingId] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -33,19 +35,10 @@ export function ScanForm({ projects }: ScanFormProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const selectedItemsRef = useRef<SelectedItem[]>([]);
 
-  if (projects.length === 0) {
-    return (
-      <div className="card card--compact muted-text">
-        アップロード可能なプロジェクトがありません。先にプロジェクトを作成してください。
-      </div>
-    );
-  }
-
   useEffect(() => {
     return () => {
       stopCamera();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -56,13 +49,127 @@ export function ScanForm({ projects }: ScanFormProps) {
     return () => {
       selectedItemsRef.current.forEach((item) => cleanupPreview(item));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function cleanupPreview(item: SelectedItem) {
     if (item.revokePreview && item.previewUrl) {
       URL.revokeObjectURL(item.previewUrl);
     }
+  }
+
+  function isHeicFile(file: File) {
+    const lower = file.name.toLowerCase();
+    return (
+      file.type === "image/heic" ||
+      file.type === "image/heif" ||
+      lower.endsWith(".heic") ||
+      lower.endsWith(".heif")
+    );
+  }
+
+  async function convertHeicToJpeg(file: Blob): Promise<Blob | null> {
+    try {
+      const heic2any = (await import("heic2any")).default as unknown as (
+        options: Record<string, unknown>,
+      ) => Promise<Blob | Blob[]>;
+      const converted = await heic2any({
+        blob: file,
+        toType: "image/jpeg",
+        quality: 0.9,
+      });
+      const blob = Array.isArray(converted) ? converted[0] : converted;
+      return blob instanceof Blob ? blob : null;
+    } catch (error) {
+      console.error("[scan] Failed to convert HEIC image", error);
+      return null;
+    }
+  }
+
+  function selectOutputType(type: string | undefined): "image/jpeg" | "image/png" | "image/webp" {
+    if (type === "image/png") {
+      return "image/png";
+    }
+    if (type === "image/webp") {
+      return "image/webp";
+    }
+    return "image/jpeg";
+  }
+
+  function ensureFileExtension(fileName: string, mime: string) {
+    const map: Record<string, string> = {
+      "image/jpeg": ".jpg",
+      "image/png": ".png",
+      "image/webp": ".webp",
+    };
+    const desired = map[mime] ?? ".jpg";
+    const lower = fileName.toLowerCase();
+    if (lower.endsWith(desired)) {
+      return fileName;
+    }
+    const dotIndex = lower.lastIndexOf(".");
+    if (dotIndex === -1) {
+      return `${fileName}${desired}`;
+    }
+    return `${fileName.slice(0, dotIndex)}${desired}`;
+  }
+
+  async function rotateFileClockwise(
+    file: File,
+  ): Promise<{ file: File; previewUrl: string; revokePreview: boolean }> {
+    const baseBlob = isHeicFile(file) ? await convertHeicToJpeg(file) : file;
+    if (!baseBlob) {
+      throw new Error("HEIC 画像の回転処理に失敗しました。");
+    }
+
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await createImageBitmap(baseBlob);
+    } catch (error) {
+      console.error("[scan] Failed to decode image for rotation", error);
+      throw new Error("画像の読み込みに失敗しました。別のブラウザでお試しください。");
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.height;
+    canvas.height = bitmap.width;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      throw new Error("画像の回転に失敗しました。");
+    }
+
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
+    bitmap.close();
+
+    const preferredType = selectOutputType(baseBlob.type || file.type);
+    let rotatedBlob: Blob;
+    try {
+      rotatedBlob = await canvasToBlob(canvas, {
+        type: preferredType,
+        quality: preferredType === "image/jpeg" ? 0.9 : undefined,
+      });
+    } catch (error) {
+      if (preferredType !== "image/jpeg") {
+        rotatedBlob = await canvasToBlob(canvas, { type: "image/jpeg", quality: 0.9 });
+      } else {
+        throw error;
+      }
+    }
+
+    const mime = rotatedBlob.type || "image/jpeg";
+    const rotatedFile = new File([rotatedBlob], ensureFileExtension(file.name, mime), {
+      type: mime,
+      lastModified: Date.now(),
+    });
+    const previewUrl = URL.createObjectURL(rotatedBlob);
+
+    return {
+      file: rotatedFile,
+      previewUrl,
+      revokePreview: true,
+    };
   }
 
   function updateSelectedItems(updater: (prev: SelectedItem[]) => SelectedItem[]) {
@@ -153,34 +260,16 @@ export function ScanForm({ projects }: ScanFormProps) {
       video.srcObject = null;
       video.removeEventListener("loadedmetadata", handleLoaded);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCameraOpen]);
 
   async function generatePreview(file: File): Promise<{ url?: string; revoke: boolean }> {
-    const lower = file.name.toLowerCase();
-    const isHeic =
-      file.type === "image/heic" ||
-      file.type === "image/heif" ||
-      lower.endsWith(".heic") ||
-      lower.endsWith(".heif");
-
-    if (isHeic) {
-      try {
-        const heic2any = (await import("heic2any")).default;
-        const converted = await heic2any({
-          blob: file,
-          toType: "image/jpeg",
-          quality: 0.8,
-        });
-        const blob = Array.isArray(converted) ? converted[0] : converted;
-        if (blob instanceof Blob) {
-          const url = URL.createObjectURL(blob);
-          return { url, revoke: true };
-        }
-      } catch (error) {
-        console.error("[scan] Failed to convert HEIC for preview", error);
-        return { url: undefined, revoke: false };
+    if (isHeicFile(file)) {
+      const blob = await convertHeicToJpeg(file);
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        return { url, revoke: true };
       }
+      return { url: undefined, revoke: false };
     }
 
     return { url: URL.createObjectURL(file), revoke: true };
@@ -194,6 +283,7 @@ export function ScanForm({ projects }: ScanFormProps) {
       key,
       file,
       previewUrl: preview.url,
+      rotation: 0,
       source: "upload",
       revokePreview: preview.revoke,
     };
@@ -206,6 +296,7 @@ export function ScanForm({ projects }: ScanFormProps) {
       key,
       file,
       previewUrl,
+      rotation: 0,
       source: "camera",
       revokePreview: false,
     };
@@ -256,7 +347,11 @@ export function ScanForm({ projects }: ScanFormProps) {
     return enhanced;
   }
 
-  async function canvasToBlob(canvas: HTMLCanvasElement) {
+  async function canvasToBlob(
+    canvas: HTMLCanvasElement,
+    options: { type?: string; quality?: number } = {},
+  ) {
+    const { type = "image/jpeg", quality } = options;
     return await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (blob) => {
@@ -266,8 +361,8 @@ export function ScanForm({ projects }: ScanFormProps) {
             reject(new Error("Blob の生成に失敗しました。"));
           }
         },
-        "image/jpeg",
-        0.9,
+        type,
+        quality,
       );
     });
   }
@@ -304,7 +399,7 @@ export function ScanForm({ projects }: ScanFormProps) {
       return;
     }
 
-    const blob = await canvasToBlob(processedCanvas).catch((error) => {
+    const blob = await canvasToBlob(processedCanvas, { type: "image/jpeg", quality: 0.9 }).catch((error) => {
       const err = error instanceof Error ? error.message : "画像の保存に失敗しました。";
       setCameraError(err);
       return null;
@@ -336,6 +431,48 @@ export function ScanForm({ projects }: ScanFormProps) {
 
   function handleRemoveItem(itemId: string) {
     updateSelectedItems((prev) => prev.filter((item) => item.id !== itemId));
+  }
+
+  async function handleRotateItem(itemId: string) {
+    const target = selectedItemsRef.current.find((item) => item.id === itemId);
+    if (!target) {
+      return;
+    }
+
+    setRotatingId(itemId);
+    try {
+      const rotated = await rotateFileClockwise(target.file);
+      let previousPreview: string | undefined;
+      const shouldRevokePrevious = target.revokePreview && target.previewUrl;
+
+      updateSelectedItems((prev) =>
+        prev.map((item) => {
+          if (item.id !== itemId) {
+            return item;
+          }
+          if (shouldRevokePrevious && item.previewUrl) {
+            previousPreview = item.previewUrl;
+          }
+          return {
+            ...item,
+            file: rotated.file,
+            previewUrl: rotated.previewUrl,
+            rotation: (item.rotation + 1) % 4,
+            revokePreview: rotated.revokePreview,
+          };
+        }),
+      );
+
+      if (previousPreview) {
+        URL.revokeObjectURL(previousPreview);
+      }
+    } catch (error) {
+      const err = error instanceof Error ? error.message : "画像の回転に失敗しました。";
+      setStatus("error");
+      setMessage(err);
+    } finally {
+      setRotatingId(null);
+    }
   }
 
   async function handleFileInput(event: ChangeEvent<HTMLInputElement>) {
@@ -410,6 +547,14 @@ export function ScanForm({ projects }: ScanFormProps) {
     }
   }
 
+  if (projects.length === 0) {
+    return (
+      <div className="card card--compact muted-text">
+        アップロード可能なプロジェクトがありません。先にプロジェクトを作成してください。
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="card scan-form">
       <div className="input-control">
@@ -459,7 +604,7 @@ export function ScanForm({ projects }: ScanFormProps) {
           </button>
         </div>
         <p className="scan-note" style={{ marginTop: "0.5rem" }}>
-          カメラ撮影した画像は自動で縦向き補正と明るさ調整を行い、下部にプレビューを表示します。
+          プレビューの「回転」ボタンで向きを調整できます。カメラ撮影画像には明るさ補正を自動適用します。
         </p>
         {cameraError && (
           <p className="form-error" role="alert">
@@ -473,6 +618,7 @@ export function ScanForm({ projects }: ScanFormProps) {
               {selectedItems.map((item) => (
                 <div key={item.id} className="selected-files__item">
                   {item.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={item.previewUrl}
                       alt={`${item.file.name} のプレビュー`}
@@ -488,13 +634,24 @@ export function ScanForm({ projects }: ScanFormProps) {
                     <span className="selected-files__badge">
                       {item.source === "camera" ? "カメラ補正済み" : "ファイル"}
                     </span>
-                    <button
-                      type="button"
-                      className="selected-files__remove"
-                      onClick={() => handleRemoveItem(item.id)}
-                    >
-                      削除
-                    </button>
+                    <div className="selected-files__actions">
+                      <button
+                        type="button"
+                        className="selected-files__rotate"
+                        onClick={() => handleRotateItem(item.id)}
+                        disabled={rotatingId === item.id}
+                        title="時計回りに90°回転"
+                      >
+                        回転
+                      </button>
+                      <button
+                        type="button"
+                        className="selected-files__remove"
+                        onClick={() => handleRemoveItem(item.id)}
+                      >
+                        削除
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

@@ -602,6 +602,12 @@ a {
   gap: 0.35rem;
 }
 
+.selected-files__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .selected-files__name {
   font-size: 0.85rem;
   font-weight: 600;
@@ -617,6 +623,28 @@ a {
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
   justify-self: start;
+}
+
+.selected-files__rotate {
+  border: none;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.selected-files__rotate:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.18);
+  color: #1e40af;
+}
+
+.selected-files__rotate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .selected-files__remove {
