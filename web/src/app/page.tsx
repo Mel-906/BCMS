@@ -53,16 +53,22 @@ function parseSummary(summary: string | null): Record<string, string> | null {
 function buildFilters(params: URLSearchParams) {
   const keyword = params.get("q")?.trim() ?? "";
   const order = params.get("order") ?? "updated";
-  return { keyword, order };
+  const pageParam = params.get("page") ?? "1";
+  const page = Number.parseInt(pageParam, 10);
+  return {
+    keyword,
+    order,
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+  };
 }
 
 const MAX_DASHBOARD_CARDS = 30;
 
 async function loadCards(
   searchParams: URLSearchParams,
-): Promise<{ cards: CardSummary[]; total: number }> {
+): Promise<{ cards: CardSummary[]; total: number; page: number }> {
   const supabase = createSupabaseServerClient();
-  const { keyword, order } = buildFilters(searchParams);
+  const { keyword, order, page } = buildFilters(searchParams);
 
   const query = supabase
     .from("source_images")
@@ -175,8 +181,10 @@ async function loadCards(
     return bTime - aTime;
   });
 
-  const limited = filtered.slice(0, MAX_DASHBOARD_CARDS);
-  return { cards: limited, total: filtered.length };
+  const total = filtered.length;
+  const start = (page - 1) * MAX_DASHBOARD_CARDS;
+  const limited = filtered.slice(start, start + MAX_DASHBOARD_CARDS);
+  return { cards: limited, total, page };
 }
 
 function SearchPanel({ searchParams }: { searchParams: URLSearchParams }) {
@@ -300,7 +308,7 @@ export default async function Home({
     }
   }
 
-  const { cards, total } = await loadCards(params);
+  const { cards, total, page } = await loadCards(params);
   const totalCards = total;
   const projectCount = new Set(cards.map((card) => card.project.id)).size;
   const recentUpdated =
@@ -313,7 +321,21 @@ export default async function Home({
   const recentUpdatedLabel = recentUpdated
     ? new Date(recentUpdated).toLocaleString()
     : null;
-  const isLimited = totalCards > cards.length;
+  const showingStart = totalCards === 0 ? 0 : (page - 1) * MAX_DASHBOARD_CARDS + 1;
+  const showingEnd = showingStart === 0 ? 0 : showingStart + cards.length - 1;
+  const hasNext = page * MAX_DASHBOARD_CARDS < totalCards;
+  const hasPrev = page > 1;
+
+  const createPageLink = (targetPage: number) => {
+    const nextParams = new URLSearchParams(params);
+    if (targetPage <= 1) {
+      nextParams.delete("page");
+    } else {
+      nextParams.set("page", String(targetPage));
+    }
+    const query = nextParams.toString();
+    return query ? `/?${query}` : "/";
+  };
 
   return (
     <main className="dashboard">
@@ -326,21 +348,25 @@ export default async function Home({
             <h2 className="card__title">
               名刺一覧{" "}
               <span style={{ fontSize: "0.9rem", color: "rgba(15,23,42,0.55)" }}>
-                ({cards.length} 件{isLimited ? ` / 全 ${totalCards} 件` : ""})
+                ({cards.length} 件 / 全 {totalCards} 件)
               </span>
             </h2>
 
             {cards.length === 0 ? (
-              <p className="muted-text">
-                解析済みの名刺がまだありません。`preprocess_images.py` と `yomitoku.py` を Supabase 連携で実行すると、ここに一覧が表示されます。
-              </p>
+              totalCards > 0 ? (
+                <p className="muted-text">
+                  このページには表示できる名刺がありません。検索条件を変更するか前のページをご確認ください。
+                </p>
+              ) : (
+                <p className="muted-text">
+                  解析済みの名刺がまだありません。`preprocess_images.py` と `yomitoku.py` を Supabase 連携で実行すると、ここに一覧が表示されます。
+                </p>
+              )
             ) : (
               <div className="project-list">
-                {isLimited ? (
-                  <p className="muted-text">
-                    検索条件に一致する最新 {cards.length} 件のみ表示しています。キーワードを絞ると他の名刺を確認できます。
-                  </p>
-                ) : null}
+                <p className="muted-text">
+                  全 {totalCards} 件中 {showingStart}〜{showingEnd} 件を表示しています。
+                </p>
                 {cards.map((card) => {
                   const latestSummary = card.summaryFields;
                   const name =
@@ -416,6 +442,25 @@ export default async function Home({
                     </div>
                   );
                 })}
+                <div className="pagination">
+                  <span className="pagination__info">
+                    ページ {page} / {Math.max(1, Math.ceil(totalCards / MAX_DASHBOARD_CARDS))}
+                  </span>
+                  <div className="pagination__controls">
+                    <Link
+                      href={createPageLink(page - 1)}
+                      className={`pagination__link${hasPrev ? "" : " pagination__link--disabled"}`}
+                    >
+                      前へ
+                    </Link>
+                    <Link
+                      href={createPageLink(page + 1)}
+                      className={`pagination__link${hasNext ? "" : " pagination__link--disabled"}`}
+                    >
+                      次へ
+                    </Link>
+                  </div>
+                </div>
               </div>
             )}
           </div>
