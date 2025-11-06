@@ -8,6 +8,13 @@ type ProjectOption = {
   user_id: string;
 };
 
+type SelectedItem = {
+  id: string;
+  file: File;
+  previewUrl?: string;
+  source: "camera" | "upload";
+};
+
 interface ScanFormProps {
   projects: ProjectOption[];
 }
@@ -16,7 +23,7 @@ export function ScanForm({ projects }: ScanFormProps) {
   const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
   const [message, setMessage] = useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => projects[0]?.id ?? "");
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -116,6 +123,67 @@ export function ScanForm({ projects }: ScanFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCameraOpen]);
 
+  function preprocessCapturedImage(sourceCanvas: HTMLCanvasElement) {
+    let working = sourceCanvas;
+
+    if (working.width > working.height) {
+      const rotated = document.createElement("canvas");
+      rotated.width = working.height;
+      rotated.height = working.width;
+      const ctx = rotated.getContext("2d");
+      if (!ctx) {
+        throw new Error("画像の回転に失敗しました。");
+      }
+      ctx.translate(rotated.width / 2, rotated.height / 2);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(working, -working.width / 2, -working.height / 2);
+      working = rotated;
+    }
+
+    const maxDimension = 1600;
+    const maxSide = Math.max(working.width, working.height);
+    if (maxSide > maxDimension) {
+      const scale = maxDimension / maxSide;
+      const resized = document.createElement("canvas");
+      resized.width = Math.round(working.width * scale);
+      resized.height = Math.round(working.height * scale);
+      const ctx = resized.getContext("2d");
+      if (!ctx) {
+        throw new Error("画像のリサイズに失敗しました。");
+      }
+      ctx.drawImage(working, 0, 0, resized.width, resized.height);
+      working = resized;
+    }
+
+    const enhanced = document.createElement("canvas");
+    enhanced.width = working.width;
+    enhanced.height = working.height;
+    const ctx = enhanced.getContext("2d");
+    if (!ctx) {
+      throw new Error("画像の補正に失敗しました。");
+    }
+    ctx.filter = "brightness(1.05) contrast(1.08) saturate(1.02)";
+    ctx.drawImage(working, 0, 0, enhanced.width, enhanced.height);
+
+    return enhanced;
+  }
+
+  async function canvasToBlob(canvas: HTMLCanvasElement) {
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("Blob の生成に失敗しました。"));
+          }
+        },
+        "image/jpeg",
+        0.9,
+      );
+    });
+  }
+
   async function capturePhoto() {
     if (!isCameraReady) {
       setCameraError("カメラの準備が完了していません。数秒お待ちください。");
@@ -128,26 +196,27 @@ export function ScanForm({ projects }: ScanFormProps) {
       return;
     }
 
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    if (!context) {
+    const rawCanvas = document.createElement("canvas");
+    rawCanvas.width = video.videoWidth;
+    rawCanvas.height = video.videoHeight;
+    const rawContext = rawCanvas.getContext("2d");
+    if (!rawContext) {
       setCameraError("画像の描画に失敗しました。");
       return;
     }
 
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    rawContext.drawImage(video, 0, 0, rawCanvas.width, rawCanvas.height);
 
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((result) => {
-        if (result) {
-          resolve(result);
-        } else {
-          reject(new Error("画像の保存に失敗しました。"));
-        }
-      }, "image/jpeg", 0.9);
-    }).catch((error) => {
+    let processedCanvas: HTMLCanvasElement;
+    try {
+      processedCanvas = preprocessCapturedImage(rawCanvas);
+    } catch (error) {
+      const err = error instanceof Error ? error.message : "画像の補正に失敗しました。";
+      setCameraError(err);
+      return;
+    }
+
+    const blob = await canvasToBlob(processedCanvas).catch((error) => {
       const err = error instanceof Error ? error.message : "画像の保存に失敗しました。";
       setCameraError(err);
       return null;
@@ -157,11 +226,27 @@ export function ScanForm({ projects }: ScanFormProps) {
       return;
     }
 
-    const timestamp = new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14);
-    const file = new File([blob], `camera-${timestamp}.jpg`, { type: "image/jpeg" });
-    setSelectedFiles((prev) => [...prev, file]);
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:T.]/g, "")
+      .slice(0, 14);
+    const fileName = `camera-${timestamp}.jpg`;
+    const file = new File([blob], fileName, {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+    const previewUrl = processedCanvas.toDataURL("image/jpeg", 0.85);
+    setSelectedItems((prev) => [
+      ...prev,
+      {
+        id: `${fileName}-${file.lastModified}`,
+        file,
+        previewUrl,
+        source: "camera",
+      },
+    ]);
     setStatus("success");
-    setMessage("カメラで撮影した画像を追加しました。");
+    setMessage("カメラで撮影した画像を自動補正して追加しました。");
     stopCamera();
   }
 
@@ -169,9 +254,9 @@ export function ScanForm({ projects }: ScanFormProps) {
     event.preventDefault();
     const form = event.currentTarget;
     const projectId = selectedProjectId;
-    const files = selectedFiles;
+    const items = selectedItems;
 
-    if (files.length === 0 || !projectId) {
+    if (items.length === 0 || !projectId) {
       setStatus("error");
       setMessage("ファイルとプロジェクトを選択してください。");
       return;
@@ -188,11 +273,11 @@ export function ScanForm({ projects }: ScanFormProps) {
       setStatus("uploading");
       setMessage("");
       const responses = [];
-      for (const file of files) {
+      for (const item of items) {
         const payload = new FormData();
         payload.set("projectId", projectId);
         payload.append("userId", project.user_id);
-        payload.append("card", file);
+        payload.append("card", item.file);
 
         const response = await fetch("/api/cards/scan", {
           method: "POST",
@@ -208,10 +293,10 @@ export function ScanForm({ projects }: ScanFormProps) {
       }
 
       form.reset();
-      setSelectedFiles([]);
+      setSelectedItems([]);
       setSelectedProjectId(projectId);
       setStatus("success");
-      const uploadedCount = files.length;
+      const uploadedCount = items.length;
       setMessage(`アップロードが完了しました（${uploadedCount}件）。解析結果が反映されるまでしばらくお待ちください。`);
     } catch (error) {
       const err = error instanceof Error ? error.message : "アップロードに失敗しました。";
@@ -255,10 +340,20 @@ export function ScanForm({ projects }: ScanFormProps) {
           onChange={(event) => {
             const files = event.currentTarget.files;
             if (!files) {
-              setSelectedFiles([]);
+              setSelectedItems((prev) => prev.filter((item) => item.source === "camera"));
               return;
             }
-            setSelectedFiles(Array.from(files));
+            const uploads = Array.from(files).map((file) => ({
+              id: `${file.name}-${file.lastModified}`,
+              file,
+              source: "upload" as const,
+            }));
+            setSelectedItems((prev) => {
+              const seen = new Set(prev.map((item) => item.id));
+              const merged = uploads.filter((item) => !seen.has(item.id));
+              return [...prev, ...merged];
+            });
+            event.currentTarget.value = "";
           }}
         />
         <p className="scan-note">対応形式: JPEG / PNG / HEIC ・ 最大 10MB / 枚 ・ 複数選択可</p>
@@ -275,30 +370,40 @@ export function ScanForm({ projects }: ScanFormProps) {
             カメラで撮影
           </button>
         </div>
+        <p className="scan-note" style={{ marginTop: "0.5rem" }}>
+          カメラ撮影した画像は自動で縦向き補正と明るさ調整を行い、下部にプレビューを表示します。
+        </p>
         {cameraError && (
           <p className="form-error" role="alert">
             {cameraError}
           </p>
         )}
-        {selectedFiles.length > 0 && (
-          <div
-            style={{
-              border: "1px solid rgba(15,23,42,0.1)",
-              borderRadius: "12px",
-              padding: "0.6rem 0.8rem",
-              background: "rgba(59,130,246,0.05)",
-              marginTop: "0.5rem",
-              display: "grid",
-              gap: "0.3rem",
-              fontSize: "0.85rem",
-            }}
-          >
-            <strong>選択中 ({selectedFiles.length} 件)</strong>
-            <ul style={{ margin: 0, paddingLeft: "1.1rem", display: "grid", gap: "0.15rem" }}>
-              {selectedFiles.map((file) => (
-                <li key={file.name}>{file.name}</li>
+        {selectedItems.length > 0 && (
+          <div className="selected-files">
+            <strong className="selected-files__title">選択中 ({selectedItems.length} 件)</strong>
+            <div className="selected-files__grid">
+              {selectedItems.map((item) => (
+                <div key={item.id} className="selected-files__item">
+                  {item.previewUrl ? (
+                    <img
+                      src={item.previewUrl}
+                      alt={`${item.file.name} のプレビュー`}
+                      className="selected-files__thumb"
+                    />
+                  ) : (
+                    <div className="selected-files__placeholder">
+                      <span>{item.file.name}</span>
+                    </div>
+                  )}
+                  <div className="selected-files__meta">
+                    <span className="selected-files__name">{item.file.name}</span>
+                    <span className="selected-files__badge">
+                      {item.source === "camera" ? "カメラ補正済み" : "ファイル"}
+                    </span>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
       </div>
