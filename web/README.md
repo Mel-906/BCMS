@@ -6,6 +6,7 @@
 - `/projects/[id]`: 登録済みカード (`source_images`)、解析結果、正規化フィールド (`yomitoku_result_fields`) とフル JSON。
 - `/scan`: 名刺画像をアップロードして Supabase Storage と `source_images` に登録。  
   Service Role Key を用いるため、安全な環境でのみ利用してください。
+- `/projects`: プロジェクト単位のメタ情報や最終更新状況を確認。
 
 ### 環境変数
 

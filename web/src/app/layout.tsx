@@ -34,6 +34,7 @@ export default function RootLayout({
               </Link>
               <nav className="app-header__nav">
                 <Link href="/">Dashboard</Link>
+                <Link href="/projects">Projects</Link>
                 <Link href="/scan">Scan</Link>
               </nav>
             </div>
