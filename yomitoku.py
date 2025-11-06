@@ -115,10 +115,18 @@ def index_manifest_entries(entries: List[Dict[str, Any]], base_dir: Path) -> Dic
                 try:
                     candidate_path = Path(value)
                     if not candidate_path.is_absolute():
-                        candidate_path = (base_dir / candidate_path).resolve()
+                        candidates = [
+                            (base_dir / candidate_path).resolve(),
+                            (Path.cwd() / candidate_path).resolve(),
+                        ]
+                        if candidate_path.parts and candidate_path.parts[0] == base_dir.name:
+                            stripped = Path(*candidate_path.parts[1:])
+                            if stripped.parts:
+                                candidates.append((base_dir / stripped).resolve())
+                        for resolved in candidates:
+                            index[str(resolved)] = entry
                     else:
-                        candidate_path = candidate_path.resolve()
-                    index[str(candidate_path)] = entry
+                        index[str(candidate_path.resolve())] = entry
                 except Exception:
                     continue
     return index
