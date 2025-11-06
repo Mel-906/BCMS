@@ -49,8 +49,15 @@ function parseSummary(summary: string | null): Record<string, string> | null {
   return null;
 }
 
-async function loadCards(): Promise<CardSummary[]> {
+function buildFilters(params: URLSearchParams) {
+  const keyword = params.get("q")?.trim() ?? "";
+  const order = params.get("order") ?? "updated";
+  return { keyword, order };
+}
+
+async function loadCards(searchParams: URLSearchParams): Promise<CardSummary[]> {
   const supabase = createSupabaseServerClient();
+  const { keyword } = buildFilters(searchParams);
 
   const query = supabase
     .from("source_images")
@@ -88,6 +95,10 @@ async function loadCards(): Promise<CardSummary[]> {
     .limit(1, { referencedTable: "processed_images" })
     .order("created_at", { referencedTable: "yomitoku_results", ascending: false })
     .limit(1, { referencedTable: "yomitoku_results" });
+
+  if (keyword) {
+    query.ilike("original_filename", `%${keyword}%`);
+  }
 
   const { data, error } = await query;
 
@@ -136,7 +147,13 @@ async function loadCards(): Promise<CardSummary[]> {
   });
 }
 
-function SearchPanel() {
+function SearchPanel({ searchParams }: { searchParams: URLSearchParams }) {
+  const { keyword, order } = buildFilters(searchParams);
+  const orderOptions = [
+    { value: "updated", label: "最近更新された順" },
+    { value: "created", label: "アップロード順" },
+  ];
+
   return (
     <div className="card">
       <h2 className="card__title">名刺を検索</h2>
@@ -146,26 +163,21 @@ function SearchPanel() {
         <div className="search-panel__row">
           <label className="input-control">
             <span>キーワード</span>
-            <input placeholder="例: 山田 / SaaS / 投資家" />
-          </label>
-          <label className="input-control">
-            <span>タグ</span>
-            <select defaultValue="all">
-              <option value="all">すべて</option>
-              <option value="recent">最近追加</option>
-              <option value="lead">リード</option>
-            </select>
+            <input name="q" defaultValue={keyword} placeholder="例: 山田 / SaaS / 投資家" />
           </label>
           <label className="input-control">
             <span>並び順</span>
-            <select defaultValue="updated">
-              <option value="updated">最近更新された順</option>
-              <option value="created">追加順</option>
+            <select name="order" defaultValue={order}>
+              {orderOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button type="button" className="primary-button">
+          <button type="submit" className="primary-button">
             検索する
           </button>
         </div>
@@ -241,8 +253,17 @@ function SummaryPanel({
   );
 }
 
-export default async function Home() {
-  const cards = await loadCards();
+export default async function Home({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (Array.isArray(value)) {
+      value.forEach((v) => params.append(key, v));
+    } else if (value !== undefined) {
+      params.set(key, value);
+    }
+  }
+
+  const cards = await loadCards(params);
   const totalCards = cards.length;
   const projectCount = new Set(cards.map((card) => card.project.id)).size;
   const recentUpdated =
@@ -261,7 +282,7 @@ export default async function Home() {
       <h1 className="dashboard__title">名刺管理ダッシュボード</h1>
       <div className="dashboard__grid">
         <section className="dashboard__main">
-          <SearchPanel />
+          <SearchPanel searchParams={params} />
 
           <div className="card">
             <h2 className="card__title">
