@@ -16,6 +16,7 @@ export function ScanForm({ projects }: ScanFormProps) {
   const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
   const [message, setMessage] = useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => projects[0]?.id ?? "");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   if (projects.length === 0) {
     return (
@@ -28,9 +29,8 @@ export function ScanForm({ projects }: ScanFormProps) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    const formData = new FormData(form);
-    const files = formData.getAll("card").filter((item): item is File => item instanceof File);
-    const projectId = formData.get("projectId")?.toString() || selectedProjectId;
+    const projectId = selectedProjectId;
+    const files = selectedFiles;
 
     if (files.length === 0 || !projectId) {
       setStatus("error");
@@ -69,7 +69,8 @@ export function ScanForm({ projects }: ScanFormProps) {
       }
 
       form.reset();
-      setSelectedProjectId(projects[0]?.id ?? "");
+      setSelectedFiles([]);
+      setSelectedProjectId(projectId);
       setStatus("success");
       const uploadedCount = files.length;
       setMessage(`アップロードが完了しました（${uploadedCount}件）。解析結果が反映されるまでしばらくお待ちください。`);
@@ -113,8 +114,37 @@ export function ScanForm({ projects }: ScanFormProps) {
           accept="image/*"
           required
           multiple
+          onChange={(event) => {
+            const files = event.currentTarget.files;
+            if (!files) {
+              setSelectedFiles([]);
+              return;
+            }
+            setSelectedFiles(Array.from(files));
+          }}
         />
-        <p className="scan-note">対応形式: JPEG / PNG / HEIC ・ 最大 10MB</p>
+        <p className="scan-note">対応形式: JPEG / PNG / HEIC ・ 最大 10MB / 枚 ・ 複数選択可</p>
+        {selectedFiles.length > 0 && (
+          <div
+            style={{
+              border: "1px solid rgba(15,23,42,0.1)",
+              borderRadius: "12px",
+              padding: "0.6rem 0.8rem",
+              background: "rgba(59,130,246,0.05)",
+              marginTop: "0.5rem",
+              display: "grid",
+              gap: "0.3rem",
+              fontSize: "0.85rem",
+            }}
+          >
+            <strong>選択中 ({selectedFiles.length} 件)</strong>
+            <ul style={{ margin: 0, paddingLeft: "1.1rem", display: "grid", gap: "0.15rem" }}>
+              {selectedFiles.map((file) => (
+                <li key={file.name}>{file.name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <button type="submit" disabled={status === "uploading"} className="primary-button">

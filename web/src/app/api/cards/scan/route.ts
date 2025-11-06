@@ -81,12 +81,6 @@ export async function POST(request: NextRequest) {
 
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bcms-upload-"));
 
-    const manifestEntries: Array<{
-      source_image_id: string;
-      source_storage_path: string;
-      processed_image_id?: string;
-    }> = [];
-
     const aggregatedManifests: Array<{
       source_image_id: string;
       source_storage_path: string;
