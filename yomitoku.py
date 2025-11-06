@@ -100,7 +100,7 @@ SUMMARY_HEADERS = [
     "その他",
 ]
 GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
-GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
+GEMINI_DEFAULT_MODEL = "gemini-2.0-flash-lite"
 GEMINI_ENV_FILE = Path(".env.local")
 GEMINI_MODEL_INSTANCE = None
 
