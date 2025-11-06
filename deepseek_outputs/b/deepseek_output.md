@@ -1,1 +1,0 @@
-<table><tr><td>Category</td><td>Value</td></tr><tr><td>Gift</td><td></td></tr><tr><td>Gift</td><td></td></tr><tr><td>Gift</td><td></td></tr><tr><td>Gift</td><td></td></tr><tr><td>Gift</td><td></td></tr></table>
