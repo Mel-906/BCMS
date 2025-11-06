@@ -96,10 +96,6 @@ async function loadCards(searchParams: URLSearchParams): Promise<CardSummary[]> 
     .order("created_at", { referencedTable: "yomitoku_results", ascending: false })
     .limit(1, { referencedTable: "yomitoku_results" });
 
-  if (keyword) {
-    query.ilike("original_filename", `%${keyword}%`);
-  }
-
   const { data, error } = await query;
 
   if (error) {
