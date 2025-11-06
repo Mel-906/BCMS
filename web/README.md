@@ -4,7 +4,7 @@
 
 - トップページ: Supabase 上の `projects` 一覧と最新のサマリ (`yomitoku_results.summary`)。
 - `/projects/[id]`: 登録済みカード (`source_images`)、解析結果、正規化フィールド (`yomitoku_result_fields`) とフル JSON。
-- `/scan`: 名刺画像をアップロードして Supabase Storage と `source_images` に登録。  
+- `/scan`: 名刺画像をアップロードして Supabase Storage と `source_images` に登録し、続けて Python スクリプトを呼び出して自動的に前処理・OCR を実行します。  
   Service Role Key を用いるため、安全な環境でのみ利用してください。
 - `/projects`: プロジェクト単位のメタ情報や最終更新状況を確認。
 

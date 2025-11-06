@@ -64,27 +64,7 @@ uv run ocr-local photo/IMG_4530.jpg --output-dir ocr_outputs
    SUPABASE_PROCESSED_BUCKET=processed-images
    ```
 
-2. 前処理から Supabase へアップロードします。
-
-   ```bash
-   uv run --env-file .env.local python preprocess_images.py photo \
-     --output-dir photo_preprocessed \
-     --record-to-db \
-     --user-id <SUPABASE_USER_UUID>
-   ```
-
-   成功すると `photo_preprocessed/manifest.json` が生成され、Source / Processed テーブルにレコードが入ります。
-
-3. OCR 解析結果も Supabase に書き込みます。
-
-   ```bash
-   uv run --env-file .env.local python yomitoku.py photo_preprocessed \
-     --record-to-db \
-     --manifest photo_preprocessed/manifest.json \
-     --user-id <SUPABASE_USER_UUID>
-   ```
-
-   `yomitoku_results` と `yomitoku_result_fields` に JSON と正規化済みフィールドが保存されます。
+2. `/api/cards/scan`（`/scan` ページから利用）でアップロードすると、同じ Python スクリプトを呼び出して自動的に前処理・OCR・Supabase 登録まで実行されます。ローカルで個別に `preprocess_images.py` や `yomitoku.py` を回す必要があるのは、自動化を使わない場合のみです。
 
 ## Web ダッシュボード (Next.js + Supabase)
 
