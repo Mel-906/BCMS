@@ -99,7 +99,7 @@ function SearchPanel() {
       <h2 className="card__title">名刺を検索</h2>
       <p className="muted-text">氏名・会社・メールアドレス・メモを横断検索できます。</p>
 
-      <form className="search-panel" onSubmit={(event) => event.preventDefault()}>
+      <form className="search-panel">
         <div className="search-panel__row">
           <label className="input-control">
             <span>キーワード</span>
@@ -122,7 +122,7 @@ function SearchPanel() {
           </label>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button type="submit" className="primary-button">
+          <button type="button" className="primary-button">
             検索する
           </button>
         </div>
