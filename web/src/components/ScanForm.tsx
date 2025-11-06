@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type ProjectOption = {
   id: string;
@@ -17,6 +17,10 @@ export function ScanForm({ projects }: ScanFormProps) {
   const [message, setMessage] = useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => projects[0]?.id ?? "");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   if (projects.length === 0) {
     return (
@@ -24,6 +28,97 @@ export function ScanForm({ projects }: ScanFormProps) {
         アップロード可能なプロジェクトがありません。先にプロジェクトを作成してください。
       </div>
     );
+  }
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function startCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("ブラウザがカメラ撮影に対応していません。別のブラウザをご利用ください。");
+      return;
+    }
+
+    try {
+      stopCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+        },
+      });
+      streamRef.current = stream;
+      setCameraError(null);
+      setIsCameraOpen(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        await video.play();
+      }
+    } catch (error) {
+      const err = error instanceof Error ? error.message : "カメラを起動できませんでした。";
+      setCameraError(err);
+      stopCamera({ resetError: false });
+    }
+  }
+
+  function stopCamera({ resetError = true }: { resetError?: boolean } = {}) {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraOpen(false);
+    if (resetError) {
+      setCameraError(null);
+    }
+  }
+
+  async function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      setCameraError("カメラの準備が完了していません。もう一度お試しください。");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setCameraError("画像の描画に失敗しました。");
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((result) => {
+        if (result) {
+          resolve(result);
+        } else {
+          reject(new Error("画像の保存に失敗しました。"));
+        }
+      }, "image/jpeg", 0.9);
+    }).catch((error) => {
+      const err = error instanceof Error ? error.message : "画像の保存に失敗しました。";
+      setCameraError(err);
+      return null;
+    });
+
+    if (!blob) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14);
+    const file = new File([blob], `camera-${timestamp}.jpg`, { type: "image/jpeg" });
+    setSelectedFiles((prev) => [...prev, file]);
+    setStatus("success");
+    setMessage("カメラで撮影した画像を追加しました。");
+    stopCamera();
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -124,6 +219,24 @@ export function ScanForm({ projects }: ScanFormProps) {
           }}
         />
         <p className="scan-note">対応形式: JPEG / PNG / HEIC ・ 最大 10MB / 枚 ・ 複数選択可</p>
+        <div className="scan-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              setMessage("");
+              setStatus("idle");
+              startCamera();
+            }}
+          >
+            カメラで撮影
+          </button>
+        </div>
+        {cameraError && (
+          <p className="form-error" role="alert">
+            {cameraError}
+          </p>
+        )}
         {selectedFiles.length > 0 && (
           <div
             style={{
@@ -154,6 +267,33 @@ export function ScanForm({ projects }: ScanFormProps) {
       {status !== "idle" && (
         <div className={`alert ${status === "success" ? "alert--success" : "alert--error"}`}>
           {message}
+        </div>
+      )}
+
+      {isCameraOpen && (
+        <div className="camera-overlay" role="dialog" aria-modal="true">
+          <div className="camera-modal">
+            <video
+              ref={videoRef}
+              className="camera-modal__video"
+              playsInline
+              autoPlay
+              muted
+            />
+            <div className="camera-modal__actions">
+              <button type="button" className="primary-button" onClick={capturePhoto}>
+                撮影して追加
+              </button>
+              <button type="button" className="secondary-button" onClick={stopCamera}>
+                キャンセル
+              </button>
+            </div>
+            {cameraError && (
+              <p className="form-error" role="alert">
+                {cameraError}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </form>
