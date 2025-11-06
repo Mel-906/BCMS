@@ -56,8 +56,17 @@ export function ScanForm({ projects }: ScanFormProps) {
       setIsCameraReady(false);
       setIsCameraOpen(true);
     } catch (error) {
-      const err = error instanceof Error ? error.message : "カメラを起動できませんでした。";
-      setCameraError(err);
+      let friendly = "カメラを起動できませんでした。接続状況やブラウザ設定をご確認ください。";
+      if (error instanceof DOMException) {
+        if (error.name === "NotAllowedError") {
+          friendly = "カメラの使用が許可されていません。ブラウザの権限設定を確認し、ページを再読み込みしてください。";
+        } else if (error.name === "NotFoundError" || error.name === "OverconstrainedError") {
+          friendly = "利用可能なカメラが見つかりません。外付けカメラの接続や他のアプリでの使用状況を確認してください。";
+        }
+      } else if (error instanceof Error) {
+        friendly = error.message;
+      }
+      setCameraError(friendly);
       stopCamera({ resetError: false });
     }
   }
