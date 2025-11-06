@@ -15,11 +15,12 @@
       body {
         font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
         margin: 0 auto;
-        padding: 32px 48px;
-        max-width: 960px;
+        padding: 24px 32px;
+        max-width: 880px;
         background: #f7f9fc;
         color: #1f2937;
-        line-height: 1.7;
+        line-height: 1.65;
+        font-size: 0.98rem;
       }
 
       header {
@@ -38,11 +39,11 @@
       }
 
       section {
-        margin-bottom: 56px;
+        margin-bottom: 44px;
         background: #fff;
-        padding: 28px 32px;
-        border-radius: 18px;
-        box-shadow: 0 15px 40px rgba(15, 23, 42, 0.08);
+        padding: 24px 28px;
+        border-radius: 16px;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
         border: 1px solid rgba(148, 163, 184, 0.18);
       }
 
@@ -69,17 +70,17 @@
 
       .tech-grid {
         display: grid;
-        gap: 16px;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        margin-top: 24px;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        margin-top: 20px;
       }
 
       .tech-card {
         border: 1px solid rgba(59, 130, 246, 0.2);
         border-radius: 14px;
-        padding: 18px;
+        padding: 16px;
         background: rgba(59, 130, 246, 0.04);
-        box-shadow: 0 12px 26px rgba(37, 99, 235, 0.08);
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.07);
       }
 
       .tech-card h3 {
@@ -91,8 +92,8 @@
       .image-placeholder {
         border: 2px dashed #94a3b8;
         border-radius: 12px;
-        padding: 16px;
-        margin: 16px 0;
+        padding: 14px;
+        margin: 14px 0;
         text-align: center;
         font-size: 0.95rem;
         color: #475569;
@@ -101,17 +102,91 @@
 
       .tips {
         border-left: 6px solid #1d4ed8;
-        padding: 16px 20px;
+        padding: 14px 18px;
         border-radius: 12px;
         background: rgba(37, 99, 235, 0.08);
-        margin-top: 20px;
+        margin-top: 18px;
       }
 
       footer {
         text-align: center;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         color: #64748b;
-        margin-top: 64px;
+        margin-top: 48px;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+          padding: 12mm 15mm;
+          max-width: none;
+          font-size: 0.9rem;
+          line-height: 1.55;
+        }
+
+        header {
+          margin-bottom: 28px;
+        }
+
+        header h1 {
+          font-size: 1.7rem;
+          margin-bottom: 6px;
+        }
+
+        header p {
+          font-size: 0.95rem;
+        }
+
+        section {
+          padding: 16px 18px;
+          margin-bottom: 26px;
+          border-radius: 8px;
+          box-shadow: none;
+          border: 1px solid #cbd5f5;
+          page-break-inside: avoid;
+        }
+
+        h2 {
+          font-size: 1.3rem;
+          margin-bottom: 10px;
+        }
+
+        h3 {
+          font-size: 1.05rem;
+          margin: 16px 0 8px;
+        }
+
+        ul,
+        ol {
+          padding-left: 1.2rem;
+        }
+
+        .image-placeholder {
+          border-width: 1px;
+          padding: 8px;
+          margin: 10px 0;
+        }
+
+        .image-placeholder img {
+          max-width: 100%;
+          height: auto;
+        }
+
+        .tech-grid {
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 10px;
+        }
+
+        .tech-card {
+          padding: 10px;
+          box-shadow: none;
+          border: 1px solid rgba(37, 99, 235, 0.25);
+        }
+
+        footer {
+          margin-top: 18px;
+          font-size: 0.8rem;
+        }
       }
     </style>
   </head>
@@ -119,8 +194,8 @@
     <header>
       <h1>BCMS 名刺管理システム 展示ガイド</h1>
       <p>
-        このシステムは、紙の名刺をデジタル化し、連絡先情報を整理・検索できるようにするための統合プラットフォームです。<br />
-        会場では以下の手順で実際に操作できます。
+        このシステムは、紙の名刺をデジタル化し、連絡先情報を整理・検索できるようにするための<br />統合プラットフォームです。
+        Business Card Management System(略してBCMS)は、<br />AIを活用したOCR技術とクラウドストレージを組み合わせ、効率的な名刺管理を実現します。
       </p>
     </header>
 
@@ -235,8 +310,7 @@
     <section id="author-comment">
       <h2>作者からのコメント</h2>
       <p>
-        BCMS は、短期間の展示でも紙の名刺を預からずにデジタル化できる仕組みを届けたいという思いから生まれました。
-        名刺の内容をその場で確認できるよう、アップロード直後のプレビューと検索性を特に重視しています。
+        情報学部1年の岩本です。今回、初めてシステムの構築を行いました。AIエージェントとともに対話しながらの開発なので、難しいことは意識せずにできましたが、前提知識が不足しているのが問題でした。今まで、抽象的に理解していたDB、API、フロントエンド、バックエンドなどの概念が、実際に触れることでまだまだ知識不足であるということを思い知らされました。非常に良い経験となったため、皆さまもぜひご挑戦ください。
       </p>
       <p>
         デモでは Supabase のサービスロールキーを利用していますが、本番環境では認証ユーザー単位で権限を分離する構成を想定しています。
