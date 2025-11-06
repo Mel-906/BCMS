@@ -22,7 +22,7 @@ async function resolvePythonExecutable(projectRoot: string): Promise<string> {
       await fs.access(candidate);
       return candidate;
     } catch {
-      // ignore and try next candidate
+      // try next candidate
     }
   }
 
@@ -33,16 +33,12 @@ function runCommand(command: string, args: string[], options: { cwd: string; env
   return new Promise<void>((resolve, reject) => {
     const proc = spawn(command, args, options);
     let stderr = "";
-    proc.stdout.on("data", (chunk) => {
-      process.stdout.write(chunk);
-    });
+    proc.stdout.on("data", (chunk) => process.stdout.write(chunk));
     proc.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
       process.stderr.write(chunk);
     });
-    proc.on("error", (err) => {
-      reject(err);
-    });
+    proc.on("error", (err) => reject(err));
     proc.on("close", (code) => {
       if (code === 0) {
         resolve();
@@ -53,8 +49,86 @@ function runCommand(command: string, args: string[], options: { cwd: string; env
   });
 }
 
-export async function POST(request: NextRequest) {
+async function processSingleFile({
+  file,
+  projectId,
+  userId,
+  projectRoot,
+  pythonExecutable,
+}: {
+  file: File;
+  projectId: string;
+  userId: string;
+  projectRoot: string;
+  pythonExecutable: string;
+}) {
   let tmpDir: string | null = null;
+  try {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bcms-upload-"));
+    const safeName = file.name.replace(/\s+/g, "_") || `${Date.now()}.jpg`;
+    const originalPath = path.join(tmpDir, safeName);
+    const outputDir = path.join(tmpDir, `${safeName}-processed`);
+
+    await fs.mkdir(outputDir, { recursive: true });
+    await fs.writeFile(originalPath, Buffer.from(await file.arrayBuffer()));
+
+    const preprocessArgs = [
+      path.join(projectRoot, "preprocess_images.py"),
+      originalPath,
+      "--output-dir",
+      outputDir,
+      "--record-to-db",
+      "--user-id",
+      userId,
+      "--project-id",
+      projectId,
+    ];
+
+    await runCommand(pythonExecutable, preprocessArgs, {
+      cwd: projectRoot,
+      env: { ...process.env },
+    });
+
+    const manifestPath = path.join(outputDir, "manifest.json");
+    const manifestRaw = await fs.readFile(manifestPath, "utf-8");
+    const manifest = JSON.parse(manifestRaw) as {
+      entries: Array<{
+        source_image_id: string;
+        source_storage_path: string;
+        processed_image_id?: string;
+      }>;
+    };
+
+    const yomitokuArgs = [
+      path.join(projectRoot, "yomitoku.py"),
+      outputDir,
+      "--record-to-db",
+      "--manifest",
+      manifestPath,
+      "--user-id",
+      userId,
+      "--project-id",
+      projectId,
+    ];
+
+    await runCommand(pythonExecutable, yomitokuArgs, {
+      cwd: projectRoot,
+      env: { ...process.env },
+    });
+
+    console.log(
+      `[INFO] Completed OCR pipeline for ${safeName}. Records: ${manifest.entries?.length ?? 0}`,
+    );
+  } catch (error) {
+    console.error("[ERROR] Failed to process file:", file.name, error);
+  } finally {
+    if (tmpDir) {
+      fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+}
+
+export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const files = formData.getAll("card").filter((item): item is File => item instanceof File);
@@ -79,83 +153,26 @@ export async function POST(request: NextRequest) {
     const projectRoot = path.resolve(process.cwd(), "..");
     const pythonExecutable = await resolvePythonExecutable(projectRoot);
 
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bcms-upload-"));
-
-    const aggregatedManifests: Array<{
-      source_image_id: string;
-      source_storage_path: string;
-      processed_image_id?: string;
-    }[]> = [];
-
-    for (const file of files) {
-      const safeName = file.name.replace(/\s+/g, "_") || `${Date.now()}.jpg`;
-      const originalPath = path.join(tmpDir, safeName);
-      const outputDir = path.join(tmpDir, `${safeName}-processed`);
-      await fs.mkdir(outputDir, { recursive: true });
-      await fs.writeFile(originalPath, Buffer.from(await file.arrayBuffer()));
-
-      const preprocessArgs = [
-        path.join(projectRoot, "preprocess_images.py"),
-        originalPath,
-        "--output-dir",
-        outputDir,
-        "--record-to-db",
-        "--user-id",
-        userId,
-        "--project-id",
+    const jobs = files.map((file) =>
+      processSingleFile({
+        file,
         projectId,
-      ];
-
-      await runCommand(pythonExecutable, preprocessArgs, {
-        cwd: projectRoot,
-        env: { ...process.env },
-      });
-
-      const manifestPath = path.join(outputDir, "manifest.json");
-      const manifestRaw = await fs.readFile(manifestPath, "utf-8");
-      const manifest = JSON.parse(manifestRaw) as {
-        entries: Array<{
-          source_image_id: string;
-          source_storage_path: string;
-          processed_image_id?: string;
-        }>;
-      };
-
-      const yomitokuArgs = [
-        path.join(projectRoot, "yomitoku.py"),
-        outputDir,
-        "--record-to-db",
-        "--manifest",
-        manifestPath,
-        "--user-id",
         userId,
-        "--project-id",
-        projectId,
-      ];
+        projectRoot,
+        pythonExecutable,
+      }),
+    );
 
-      await runCommand(pythonExecutable, yomitokuArgs, {
-        cwd: projectRoot,
-        env: { ...process.env },
-      });
-
-      aggregatedManifests.push(manifest.entries ?? []);
-    }
-
-    const manifestEntries = aggregatedManifests.flat();
+    jobs.forEach((job) => job.catch((error) => console.error("[ERROR] Background job failed:", error)));
 
     return NextResponse.json(
       {
-        message: "Upload and analysis completed.",
-        processed: manifestEntries,
+        message: `アップロードを受け付けました（${files.length}件）。解析結果は順次反映されます。`,
       },
-      { status: 201 },
+      { status: 202 },
     );
   } catch (error) {
     const err = error instanceof Error ? error.message : "Unexpected error";
     return NextResponse.json({ message: err }, { status: 500 });
-  } finally {
-    if (tmpDir) {
-      fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
-    }
   }
 }
