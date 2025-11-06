@@ -599,7 +599,7 @@ a {
 .selected-files__meta {
   padding: 0 0.75rem 0.75rem;
   display: grid;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
 .selected-files__name {
@@ -617,6 +617,24 @@ a {
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
   justify-self: start;
+}
+
+.selected-files__remove {
+  justify-self: start;
+  border: none;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.selected-files__remove:hover {
+  background: rgba(239, 68, 68, 0.16);
+  color: #991b1b;
 }
 
 .alert {

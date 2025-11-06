@@ -400,6 +400,15 @@ export function ScanForm({ projects }: ScanFormProps) {
                     <span className="selected-files__badge">
                       {item.source === "camera" ? "カメラ補正済み" : "ファイル"}
                     </span>
+                    <button
+                      type="button"
+                      className="selected-files__remove"
+                      onClick={() => {
+                        setSelectedItems((prev) => prev.filter((entry) => entry.id !== item.id));
+                      }}
+                    >
+                      削除
+                    </button>
                   </div>
                 </div>
               ))}
