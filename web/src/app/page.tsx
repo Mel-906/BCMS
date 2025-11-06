@@ -284,6 +284,10 @@ export default async function Home() {
                   const organization = latestSummary?.["所属"] ?? "";
                   const email = latestSummary?.["e-mail"] ?? "";
                   const phone = latestSummary?.["Tel"] ?? "";
+                  const memo = latestSummary?.["その他"] ?? "";
+                  const projectTimestamp = new Date(
+                    card.project.updated_at ?? card.project.created_at,
+                  ).toLocaleString();
 
                   return (
                     <Link
@@ -292,54 +296,49 @@ export default async function Home() {
                       className="project-card"
                       style={{ textDecoration: "none" }}
                     >
-                      <div className="project-card__header">
+                      <div className="project-card__top">
                         <div>
                           <h3 className="project-card__title">{name}</h3>
-                          <p className="muted-text" style={{ marginTop: "0.35rem" }}>
+                          <p className="muted-text project-card__subtitle">
                             {organization || "所属情報なし"}
                           </p>
                         </div>
-                        <div className="tags">
-                          <span className="tag" style={{ background: "rgba(59,130,246,0.12)", color: "#2563eb" }}>
-                            {card.project.title}
+                        <div className="project-card__badges">
+                          <span className="badge badge--primary">
+                            Project {projectTimestamp}
                           </span>
-                          <span className="tag" style={{ background: "rgba(99,102,241,0.12)", color: "#4c1d95" }}>
+                          <span className="badge badge--secondary">
                             {card.processedImage ? "前処理済み" : "原本のみ"}
                           </span>
                         </div>
                       </div>
 
                       <div className="project-card__meta">
-                        <span>アップロード {new Date(card.sourceImage.created_at).toLocaleDateString()}</span>
+                        <span>
+                          アップロード {new Date(card.sourceImage.created_at).toLocaleDateString()}
+                        </span>
                         <span>
                           最新解析{" "}
                           {card.latestResult
                             ? new Date(card.latestResult.created_at).toLocaleDateString()
                             : "未解析"}
                         </span>
-                        {card.latestResult?.confidence !== undefined && card.latestResult.confidence !== null && (
-                          <span>
-                            信頼度 {Math.round(card.latestResult.confidence * 100)}%
-                          </span>
-                        )}
                       </div>
 
-                      <div className="project-card__meta" style={{ flexDirection: "column", gap: "0.35rem" }}>
-                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                          <span className="tag" style={{ background: "rgba(16,185,129,0.12)", color: "#047857" }}>
-                            メール: {email || "―"}
-                          </span>
-                          <span className="tag" style={{ background: "rgba(16,185,129,0.12)", color: "#047857" }}>
-                            電話: {phone || "―"}
-                          </span>
-                        </div>
-                        {latestSummary?.["その他"] && (
-                          <p className="muted-text" style={{ marginTop: "0.25rem" }}>
-                            メモ: {latestSummary["その他"]}
-                          </p>
-                        )}
+                      <div className="project-card__meta project-card__meta--contact">
+                        <span className="chip">
+                          メール: <strong>{email || "―"}</strong>
+                        </span>
+                        <span className="chip">
+                          電話: <strong>{phone || "―"}</strong>
+                        </span>
                       </div>
-                      <div className="project-card__links" />
+
+                      {memo && (
+                        <p className="project-card__memo">
+                          メモ: {memo}
+                        </p>
+                      )}
                     </Link>
                   );
                 })}
