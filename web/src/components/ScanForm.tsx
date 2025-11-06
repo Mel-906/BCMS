@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 
 type ProjectOption = {
   id: string;
@@ -10,9 +10,11 @@ type ProjectOption = {
 
 type SelectedItem = {
   id: string;
+  key: string;
   file: File;
   previewUrl?: string;
   source: "camera" | "upload";
+  revokePreview?: boolean;
 };
 
 interface ScanFormProps {
@@ -29,6 +31,7 @@ export function ScanForm({ projects }: ScanFormProps) {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const selectedItemsRef = useRef<SelectedItem[]>([]);
 
   if (projects.length === 0) {
     return (
@@ -44,6 +47,36 @@ export function ScanForm({ projects }: ScanFormProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    selectedItemsRef.current = selectedItems;
+  }, [selectedItems]);
+
+  useEffect(() => {
+    return () => {
+      selectedItemsRef.current.forEach((item) => cleanupPreview(item));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function cleanupPreview(item: SelectedItem) {
+    if (item.revokePreview && item.previewUrl) {
+      URL.revokeObjectURL(item.previewUrl);
+    }
+  }
+
+  function updateSelectedItems(updater: (prev: SelectedItem[]) => SelectedItem[]) {
+    setSelectedItems((prev) => {
+      const next = updater(prev);
+      const nextIds = new Set(next.map((item) => item.id));
+      prev.forEach((item) => {
+        if (!nextIds.has(item.id)) {
+          cleanupPreview(item);
+        }
+      });
+      return next;
+    });
+  }
 
   async function startCamera() {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -122,6 +155,30 @@ export function ScanForm({ projects }: ScanFormProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCameraOpen]);
+
+  function createUploadItem(file: File): SelectedItem {
+    const key = `${file.name}-${file.size}-${file.lastModified}`;
+    const previewUrl = URL.createObjectURL(file);
+    return {
+      id: `${key}-upload`,
+      key,
+      file,
+      previewUrl,
+      source: "upload",
+      revokePreview: true,
+    };
+  }
+
+  function createCameraItem(file: File, previewUrl: string): SelectedItem {
+    const key = `${file.name}-${file.size}-${file.lastModified}`;
+    return {
+      id: `${key}-camera`,
+      key,
+      file,
+      previewUrl,
+      source: "camera",
+    };
+  }
 
   function preprocessCapturedImage(sourceCanvas: HTMLCanvasElement) {
     let working = sourceCanvas;
@@ -236,25 +293,42 @@ export function ScanForm({ projects }: ScanFormProps) {
       lastModified: Date.now(),
     });
     const previewUrl = processedCanvas.toDataURL("image/jpeg", 0.85);
-    setSelectedItems((prev) => [
-      ...prev,
-      {
-        id: `${fileName}-${file.lastModified}`,
-        file,
-        previewUrl,
-        source: "camera",
-      },
-    ]);
+    const item = createCameraItem(file, previewUrl);
+    updateSelectedItems((prev) => {
+      const withoutDup = prev.filter((entry) => entry.key !== item.key);
+      return [...withoutDup, item];
+    });
     setStatus("success");
     setMessage("カメラで撮影した画像を自動補正して追加しました。");
     stopCamera();
+  }
+
+  function handleRemoveItem(itemId: string) {
+    updateSelectedItems((prev) => prev.filter((item) => item.id !== itemId));
+  }
+
+  function handleFileInput(event: ChangeEvent<HTMLInputElement>) {
+    const { files } = event.currentTarget;
+
+    if (!files || files.length === 0) {
+      updateSelectedItems((prev) => prev.filter((item) => item.source === "camera"));
+      return;
+    }
+
+    const newItems = Array.from(files).map((file) => createUploadItem(file));
+    updateSelectedItems((prev) => {
+      const existingKeys = new Set(prev.map((item) => item.key));
+      const deduped = newItems.filter((item) => !existingKeys.has(item.key));
+      return [...prev, ...deduped];
+    });
+    event.currentTarget.value = "";
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const projectId = selectedProjectId;
-    const items = selectedItems;
+    const items = selectedItemsRef.current;
 
     if (items.length === 0 || !projectId) {
       setStatus("error");
@@ -293,7 +367,7 @@ export function ScanForm({ projects }: ScanFormProps) {
       }
 
       form.reset();
-      setSelectedItems([]);
+      updateSelectedItems(() => []);
       setSelectedProjectId(projectId);
       setStatus("success");
       const uploadedCount = items.length;
@@ -337,24 +411,7 @@ export function ScanForm({ projects }: ScanFormProps) {
           type="file"
           accept="image/*"
           multiple
-          onChange={(event) => {
-            const files = event.currentTarget.files;
-            if (!files) {
-              setSelectedItems((prev) => prev.filter((item) => item.source === "camera"));
-              return;
-            }
-            const uploads = Array.from(files).map((file) => ({
-              id: `${file.name}-${file.lastModified}`,
-              file,
-              source: "upload" as const,
-            }));
-            setSelectedItems((prev) => {
-              const seen = new Set(prev.map((item) => item.id));
-              const merged = uploads.filter((item) => !seen.has(item.id));
-              return [...prev, ...merged];
-            });
-            event.currentTarget.value = "";
-          }}
+          onChange={handleFileInput}
         />
         <p className="scan-note">対応形式: JPEG / PNG / HEIC ・ 最大 10MB / 枚 ・ 複数選択可</p>
         <div className="scan-actions">
@@ -403,9 +460,7 @@ export function ScanForm({ projects }: ScanFormProps) {
                     <button
                       type="button"
                       className="selected-files__remove"
-                      onClick={() => {
-                        setSelectedItems((prev) => prev.filter((entry) => entry.id !== item.id));
-                      }}
+                      onClick={() => handleRemoveItem(item.id)}
                     >
                       削除
                     </button>
