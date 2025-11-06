@@ -16,6 +16,7 @@ import csv
 import importlib.util
 import json
 import os
+import logging
 import re
 import sys
 import time
@@ -55,9 +56,18 @@ if _SPEC is None:
 from yomitoku import DocumentAnalyzer
 from yomitoku.document_analyzer import DocumentAnalyzerSchema
 from yomitoku.export import export_csv, export_html, export_json, export_markdown
+from google.api_core import exceptions as google_api_exceptions
 
 # Ensure local Supabase helper is importable even after pruning sys.path.
 _SUPABASE_UTILS_PATH = _SCRIPT_DIR / "supabase_utils.py"
+
+logger = logging.getLogger("bcms.yomitoku")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("[%(levelname)s] %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 if _SUPABASE_UTILS_PATH.exists():
     try:
         _supabase_spec = importlib.util.spec_from_file_location("supabase_utils", _SUPABASE_UTILS_PATH)
@@ -293,6 +303,10 @@ def build_gemini_payload(results: DocumentAnalyzerSchema) -> Dict[str, List[str]
     }
 
 
+class GeminiRateLimitError(RuntimeError):
+    """Raised when Gemini API quota is exhausted after retries."""
+
+
 def call_gemini_summary(model: object, payload_dict: Dict[str, List[str]]) -> Dict[str, str]:
     payload = json.dumps(payload_dict, ensure_ascii=False)
     prompt = (
@@ -302,13 +316,30 @@ def call_gemini_summary(model: object, payload_dict: Dict[str, List[str]]) -> Di
         "Use empty strings for unknown values and separate multiple entries with ';'. Respond with JSON only."
     )
 
-    try:
-        response = model.generate_content([
-            {"text": prompt},
-            {"text": payload},
-        ])
-    except Exception as exc:  # pragma: no cover - network
-        raise RuntimeError(f"Gemini request failed: {exc}") from exc
+    response = None
+    for attempt in range(MAX_GEMINI_RETRIES):
+        try:
+            response = model.generate_content([
+                {"text": prompt},
+                {"text": payload},
+            ])
+            break
+        except google_api_exceptions.ResourceExhausted as exc:
+            if attempt + 1 >= MAX_GEMINI_RETRIES:
+                raise GeminiRateLimitError(str(exc)) from exc
+            wait_seconds = GEMINI_RETRY_BASE_DELAY * (2**attempt)
+            logger.warning(
+                "Gemini API レート制限 (429)。%.1f 秒後に再試行します… [%d/%d]",
+                wait_seconds,
+                attempt + 1,
+                MAX_GEMINI_RETRIES,
+            )
+            time.sleep(wait_seconds)
+        except Exception as exc:  # pragma: no cover - network
+            raise RuntimeError(f"Gemini request failed: {exc}") from exc
+
+    if response is None:
+        raise RuntimeError("Gemini response was empty after retries.")
 
     text = getattr(response, "text", None)
     if not text:
@@ -331,7 +362,11 @@ def generate_summary_fields(results: DocumentAnalyzerSchema, gemini_model: objec
     if gemini_model is None:
         return extract_summary_fields_heuristic(results)
     payload = build_gemini_payload(results)
-    return call_gemini_summary(gemini_model, payload)
+    try:
+        return call_gemini_summary(gemini_model, payload)
+    except GeminiRateLimitError as exc:
+        logger.warning("Gemini API の利用上限に到達しました。ヒューリスティック抽出に切り替えます。 (%s)", exc)
+        return extract_summary_fields_heuristic(results)
 
 SAMPLE_IMAGE_PATHS = [
     "static/in/demo.jpg",
@@ -345,6 +380,9 @@ SAMPLE_IMAGE_PATHS = [
 ]
 
 RAW_GITHUB_BASE = "https://raw.githubusercontent.com/kotaro-kinoshita/yomitoku/main/"
+
+MAX_GEMINI_RETRIES = int(os.getenv("GEMINI_MAX_RETRIES", "3"))
+GEMINI_RETRY_BASE_DELAY = float(os.getenv("GEMINI_RETRY_BASE_DELAY", "5"))
 
 
 def resolve_device(requested: str) -> str:
