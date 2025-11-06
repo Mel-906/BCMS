@@ -130,9 +130,17 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         gap: "2rem",
       }}
     >
-      <Link href="/" style={{ color: "#2563eb", fontWeight: 600, fontSize: "0.95rem" }}>
-        ← ダッシュボードに戻る
-      </Link>
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+        <Link href="/" style={{ color: "#2563eb", fontWeight: 600, fontSize: "0.95rem" }}>
+          ← ダッシュボードに戻る
+        </Link>
+        <Link
+          href={`/projects/${projectRecord.id}/manage`}
+          style={{ color: "#2563eb", fontWeight: 600, fontSize: "0.95rem" }}
+        >
+          管理ページへ →
+        </Link>
+      </div>
 
       <section style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         <h1 style={{ fontSize: "2rem", fontWeight: 600 }}>{projectRecord.title}</h1>

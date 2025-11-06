@@ -219,6 +219,17 @@ export default async function Home() {
                 >
                   詳細ページへ →
                 </Link>
+                <Link
+                  href={`/projects/${project.id}/manage`}
+                  style={{
+                    color: "#2563eb",
+                    fontWeight: 600,
+                    fontSize: "0.95rem",
+                    marginLeft: "1rem",
+                  }}
+                >
+                  管理 →
+                </Link>
               </div>
             </article>
           ))
