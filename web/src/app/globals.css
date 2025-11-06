@@ -214,7 +214,7 @@ a {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .project-card__title {
@@ -234,6 +234,17 @@ a {
   gap: 0.6rem;
   flex-wrap: wrap;
   margin-left: auto;
+  align-self: flex-start;
+  justify-content: flex-end;
+  align-items: flex-start;
+  align-content: flex-start;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .project-card__top {
+    flex-wrap: wrap;
+  }
 }
 
 .badge {
