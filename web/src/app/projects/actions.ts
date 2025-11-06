@@ -1,3 +1,5 @@
+"use server";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
@@ -5,8 +7,6 @@ import { randomUUID } from "crypto";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 export async function createProject(formData: FormData) {
-  "use server";
-
   const supabase = createSupabaseServerClient();
 
   const title = String(formData.get("title") ?? "").trim();
@@ -43,8 +43,6 @@ export async function createProject(formData: FormData) {
 }
 
 export async function deleteProject(projectId: string) {
-  "use server";
-
   const supabase = createSupabaseServerClient();
 
   if (!projectId) {
