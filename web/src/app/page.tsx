@@ -253,9 +253,14 @@ function SummaryPanel({
   );
 }
 
-export default async function Home({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const resolved = await searchParams;
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(searchParams)) {
+  for (const [key, value] of Object.entries(resolved)) {
     if (Array.isArray(value)) {
       value.forEach((v) => params.append(key, v));
     } else if (value !== undefined) {
