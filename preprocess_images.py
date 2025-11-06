@@ -160,7 +160,59 @@ def _order_points(pts: np.ndarray) -> np.ndarray:
     return rect
 
 
-def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, bool]:
+def _binarize_for_text(image: np.ndarray) -> np.ndarray:
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    if np.mean(binary) > 127:
+        binary = cv2.bitwise_not(binary)
+    return binary
+
+
+def _compute_text_metrics(image: np.ndarray) -> Dict[str, float]:
+    binary = _binarize_for_text(image)
+    row_proj = np.sum(binary, axis=1).astype(np.float64)
+    col_proj = np.sum(binary, axis=0).astype(np.float64)
+    row_var = float(np.var(row_proj)) if row_proj.size > 0 else 0.0
+    col_var = float(np.var(col_proj)) if col_proj.size > 0 else 0.0
+    h = binary.shape[0]
+    window = max(h // 5, 1)
+    top_density = float(np.mean(row_proj[:window])) if h > 0 else 0.0
+    bottom_density = float(np.mean(row_proj[-window:])) if h > 0 else 0.0
+    moments = cv2.moments(binary)
+    cy = float(moments["m01"] / moments["m00"]) if moments["m00"] else h / 2.0
+    return {
+        "row_var": row_var,
+        "col_var": col_var,
+        "top_density": top_density,
+        "bottom_density": bottom_density,
+        "center_y": cy,
+        "height": float(h),
+    }
+
+
+def _orient_card(image: np.ndarray) -> Tuple[np.ndarray, int, str]:
+    rotated = image
+    rotation = 0
+    orientation_method = "none"
+
+    metrics = _compute_text_metrics(rotated)
+    if metrics["col_var"] > 0 and metrics["row_var"] < metrics["col_var"] * 0.9:
+        rotated = cv2.rotate(rotated, cv2.ROTATE_90_CLOCKWISE)
+        rotation = (rotation + 90) % 360
+        orientation_method = "auto"
+        metrics = _compute_text_metrics(rotated)
+
+    if metrics["bottom_density"] + 1e-5 < metrics["top_density"] * 0.9:
+        rotated = cv2.rotate(rotated, cv2.ROTATE_180)
+        rotation = (rotation + 180) % 360
+        orientation_method = "auto"
+        metrics = _compute_text_metrics(rotated)
+
+    return rotated, rotation, orientation_method
+
+
+def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, Dict[str, object]]:
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
     l_channel = lab[:, :, 0]
     blurred = cv2.GaussianBlur(l_channel, (5, 5), 0)
@@ -180,15 +232,19 @@ def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, bool]:
     edges = cv2.dilate(edges, None, iterations=2)
 
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    best_metadata = {"cropped": False, "rotation_deg": 0, "crop_method": None, "orientation_method": "none"}
     if not contours:
-        return image, False
+        oriented, rotation, orient_method = _orient_card(image)
+        best_metadata.update({"rotation_deg": rotation, "orientation_method": orient_method})
+        return oriented, best_metadata
 
     h, w = image.shape[:2]
     image_area = float(h * w)
+    min_area = image_area * 0.05
 
     for contour in sorted(contours, key=cv2.contourArea, reverse=True):
         area = cv2.contourArea(contour)
-        if area < image_area * 0.15:
+        if area < min_area:
             continue
 
         peri = cv2.arcLength(contour, True)
@@ -228,9 +284,32 @@ def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, bool]:
 
         matrix = cv2.getPerspectiveTransform(rect, dst)
         warped = cv2.warpPerspective(image, matrix, (width, height))
-        return warped, True
+        oriented, rotation, orient_method = _orient_card(warped)
+        return oriented, {
+            "cropped": True,
+            "rotation_deg": rotation,
+            "crop_method": "perspective",
+            "orientation_method": orient_method,
+        }
 
-    return image, False
+    # Fallback: crop the largest contour bounding box if perspective transform fails
+    best = max(contours, key=cv2.contourArea)
+    area = cv2.contourArea(best)
+    if area >= min_area:
+        x, y, bw, bh = cv2.boundingRect(best)
+        cropped = image[y : y + bh, x : x + bw]
+        oriented, rotation, orient_method = _orient_card(cropped)
+        if cropped.size > 0:
+            return oriented, {
+                "cropped": True,
+                "rotation_deg": rotation,
+                "crop_method": "bounding_rect",
+                "orientation_method": orient_method,
+            }
+
+    oriented, rotation, orient_method = _orient_card(image)
+    best_metadata.update({"rotation_deg": rotation, "orientation_method": orient_method})
+    return oriented, best_metadata
 
 
 def preprocess_image(
@@ -242,7 +321,9 @@ def preprocess_image(
     rgb = np.array(pil_image)
     image = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
-    image, cropped = detect_card_region(image)
+    image, crop_info = detect_card_region(image)
+    cropped = crop_info.get("cropped", False)
+    rotation = crop_info.get("rotation_deg", 0)
 
     h, w = image.shape[:2]
     original_shape = (int(h), int(w))
@@ -275,6 +356,9 @@ def preprocess_image(
         "original_shape": list(original_shape),
         "final_shape": [int(image.shape[0]), int(image.shape[1])],
         "min_size": min_size,
+        "rotation_deg": int(rotation),
+        "crop_method": crop_info.get("crop_method"),
+        "orientation_method": crop_info.get("orientation_method"),
     }
 
     return image, metadata
