@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { createProject, deleteProject } from "./actions";
 import type { ProjectRow, SourceImageRow, YomitokuResultRow } from "@/lib/database.types";
 
 type ProjectStats = {
@@ -67,6 +69,8 @@ async function loadProjects(): Promise<ProjectStats[]> {
 
 export default async function ProjectsPage() {
   const projects = await loadProjects();
+  const cookieStore = cookies();
+  const defaultUser = cookieStore.get("supabase-user-id")?.value ?? "";
 
   return (
     <main className="dashboard">
@@ -79,9 +83,32 @@ export default async function ProjectsPage() {
             OCR パイプラインが紐づくプロジェクトの状況を閲覧・編集できます。名刺単位の管理はダッシュボード画面で行ってください。
           </p>
         </div>
-        <Link href="/scan" className="primary-button" style={{ textDecoration: "none" }}>
-          名刺をアップロード
-        </Link>
+        <form
+          action={createProject}
+          className="card"
+          style={{ marginTop: "1.5rem", width: "100%", maxWidth: "420px" }}
+        >
+          <h2 className="card__title">新規プロジェクト</h2>
+          <div className="input-control">
+            <span>タイトル *</span>
+            <input name="title" required placeholder="例: 展示会A 2025" />
+          </div>
+          <div className="input-control">
+            <span>説明</span>
+            <textarea name="description" rows={3} placeholder="プロジェクトの用途など" />
+          </div>
+          <div className="input-control">
+            <span>ステータス</span>
+            <input name="status" defaultValue="active" placeholder="active / archived など" />
+          </div>
+          <div className="input-control">
+            <span>ユーザー ID *</span>
+            <input name="userId" defaultValue={defaultUser} required />
+          </div>
+          <button type="submit" className="primary-button">
+            作成
+          </button>
+        </form>
       </header>
 
       <div className="card">
@@ -95,47 +122,60 @@ export default async function ProjectsPage() {
             <p className="muted-text">プロジェクトが存在しません。名刺をアップロードすると自動で作成されます。</p>
           ) : (
             projects.map(({ project, cardCount, lastCard, lastAnalysis }) => (
-              <Link
-                key={project.id}
-                href={`/projects/${project.id}`}
-                className="project-card"
-                style={{ textDecoration: "none" }}
-              >
-                <div className="project-card__top">
-                  <div>
-                    <h3 className="project-card__title">{project.title}</h3>
-                    {project.description && (
-                      <p className="project-card__subtitle">{project.description}</p>
-                    )}
+              <div key={project.id} className="project-card">
+                <Link href={`/projects/${project.id}`} style={{ textDecoration: "none" }}>
+                  <div className="project-card__top">
+                    <div>
+                      <h3 className="project-card__title">{project.title}</h3>
+                      {project.description && (
+                        <p className="project-card__subtitle">{project.description}</p>
+                      )}
+                    </div>
+                    <div className="project-card__badges">
+                      <span className="badge badge--primary">{project.status}</span>
+                      <span className="badge badge--secondary">名刺 {cardCount} 枚</span>
+                    </div>
                   </div>
-                  <div className="project-card__badges">
-                    <span className="badge badge--primary">{project.status}</span>
-                    <span className="badge badge--secondary">名刺 {cardCount} 枚</span>
+
+                  <div className="project-card__meta">
+                    <span>作成 {new Date(project.created_at).toLocaleDateString()}</span>
+                    <span>更新 {new Date(project.updated_at).toLocaleDateString()}</span>
                   </div>
-                </div>
 
-                <div className="project-card__meta">
-                  <span>作成 {new Date(project.created_at).toLocaleDateString()}</span>
-                  <span>更新 {new Date(project.updated_at).toLocaleDateString()}</span>
-                </div>
-
-                <div className="project-card__meta project-card__meta--contact">
-                  <span className="chip">
-                    最終アップロード:{" "}
-                    <strong>
-                      {lastCard ? new Date(lastCard.updated_at ?? lastCard.created_at).toLocaleString() : "—"}
-                    </strong>
-                  </span>
-                  <span className="chip">
-                    最新解析:{" "}
-                    <strong>
-                      {lastAnalysis
-                        ? new Date(lastAnalysis.updated_at ?? lastAnalysis.created_at).toLocaleString()
-                        : "未解析"}
-                    </strong>
-                  </span>
-                </div>
-              </Link>
+                  <div className="project-card__meta project-card__meta--contact">
+                    <span className="chip">
+                      最終アップロード:{" "}
+                      <strong>
+                        {lastCard ? new Date(lastCard.updated_at ?? lastCard.created_at).toLocaleString() : "—"}
+                      </strong>
+                    </span>
+                    <span className="chip">
+                      最新解析:{" "}
+                      <strong>
+                        {lastAnalysis
+                          ? new Date(lastAnalysis.updated_at ?? lastAnalysis.created_at).toLocaleString()
+                          : "未解析"}
+                      </strong>
+                    </span>
+                  </div>
+                </Link>
+                <form action={deleteProject.bind(null, project.id)} method="post" style={{ marginTop: "0.75rem" }}>
+                  <button
+                    type="submit"
+                    style={{
+                      background: "rgba(248, 113, 113, 0.15)",
+                      color: "#b91c1c",
+                      border: "none",
+                      borderRadius: "12px",
+                      padding: "0.5rem 0.9rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    プロジェクトを削除
+                  </button>
+                </form>
+              </div>
             ))
           )}
         </div>
