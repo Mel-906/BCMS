@@ -349,11 +349,14 @@ export default async function Home({
                         className="project-card__link"
                         style={{ textDecoration: "none" }}
                       >
-                        <div className="project-card__top">
+                      <div className="project-card__top">
                         <div>
                           <h3 className="project-card__title">{name}</h3>
                           <p className="muted-text project-card__subtitle">
                             {organization || "所属情報なし"}
+                          </p>
+                          <p className="muted-text" style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>
+                            プロジェクト: {card.project.title}
                           </p>
                         </div>
                         <div className="project-card__badges">

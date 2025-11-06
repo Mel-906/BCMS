@@ -152,12 +152,15 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                     style={{ textDecoration: "none" }}
                   >
                     <div className="project-card__top">
-                    <div>
-                      <h3 className="project-card__title">{name}</h3>
-                      <p className="project-card__subtitle">
-                        {organization || "所属情報なし"}
-                      </p>
-                    </div>
+                      <div>
+                        <h3 className="project-card__title">{name}</h3>
+                        <p className="project-card__subtitle">
+                          {organization || "所属情報なし"}
+                        </p>
+                        <p className="muted-text" style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>
+                          プロジェクト: {projectRecord.title}
+                        </p>
+                      </div>
                     <div className="project-card__badges">
                       <span className="badge badge--primary">
                         アップロード {new Date(source.created_at).toLocaleDateString()}
