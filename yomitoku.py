@@ -103,7 +103,7 @@ def load_manifest_data(manifest_path: Path) -> Dict[str, Any]:
     return data
 
 
-def index_manifest_entries(entries: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def index_manifest_entries(entries: List[Dict[str, Any]], base_dir: Path) -> Dict[str, Dict[str, Any]]:
     index: Dict[str, Dict[str, Any]] = {}
     for entry in entries:
         if not isinstance(entry, dict):
@@ -112,6 +112,15 @@ def index_manifest_entries(entries: List[Dict[str, Any]]) -> Dict[str, Dict[str,
             value = entry.get(key)
             if isinstance(value, str):
                 index[value] = entry
+                try:
+                    candidate_path = Path(value)
+                    if not candidate_path.is_absolute():
+                        candidate_path = (base_dir / candidate_path).resolve()
+                    else:
+                        candidate_path = candidate_path.resolve()
+                    index[str(candidate_path)] = entry
+                except Exception:
+                    continue
     return index
 
 EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
@@ -1019,7 +1028,7 @@ def main() -> None:
             manifest_data = load_manifest_data(manifest_path)
             entries = manifest_data.get("entries") or []
             if isinstance(entries, list):
-                manifest_index = index_manifest_entries(entries)
+                manifest_index = index_manifest_entries(entries, manifest_path.parent.resolve())
         except Exception as exc:
             print(f"[ERROR] Failed to load manifest file {manifest_path}: {exc}", file=sys.stderr)
             sys.exit(1)
