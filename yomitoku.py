@@ -56,6 +56,18 @@ from yomitoku import DocumentAnalyzer
 from yomitoku.document_analyzer import DocumentAnalyzerSchema
 from yomitoku.export import export_csv, export_html, export_json, export_markdown
 
+# Ensure local Supabase helper is importable even after pruning sys.path.
+_SUPABASE_UTILS_PATH = _SCRIPT_DIR / "supabase_utils.py"
+if _SUPABASE_UTILS_PATH.exists():
+    try:
+        _supabase_spec = importlib.util.spec_from_file_location("supabase_utils", _SUPABASE_UTILS_PATH)
+        if _supabase_spec and _supabase_spec.loader:
+            _supabase_module = importlib.util.module_from_spec(_supabase_spec)
+            sys.modules["supabase_utils"] = _supabase_module
+            _supabase_spec.loader.exec_module(_supabase_module)
+    except Exception as _exc:
+        raise RuntimeError(f"Failed to load local supabase_utils module: {_exc}") from _exc
+
 from supabase_utils import (
     SupabaseConfigError,
     SupabaseRepository,
