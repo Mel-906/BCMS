@@ -10,9 +10,9 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 interface ProjectPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 function parseSummary(summary: string | null): Record<string, string> | null {
@@ -65,9 +65,10 @@ function ensureArray<T>(input: unknown): T[] {
 }
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
+  const { id } = await params;
   const supabase = createSupabaseServerClient();
 
-  const projectId = params.id as ProjectRow["id"];
+  const projectId = id as ProjectRow["id"];
 
   const { data: project, error: projectError } = await supabase
     .from("projects")

@@ -153,9 +153,10 @@ async function updateSummaryAction(formData: FormData) {
 export default async function ManageProjectPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { project, results } = await loadProjectData(params.id);
+  const { id } = await params;
+  const { project, results } = await loadProjectData(id);
 
   return (
     <main
