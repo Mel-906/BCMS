@@ -421,7 +421,7 @@ export default async function Home({
           </div>
         </section>
 
-        <aside className="dashboard__side" style={{ display: "grid", gap: "1.5rem" }}>
+        <aside className="dashboard__side">
           <UploadPanel projectsCount={projectCount} />
           <SummaryPanel projects={projectCount} cards={totalCards} recentUpdated={recentUpdatedLabel} />
         </aside>

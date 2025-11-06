@@ -107,13 +107,26 @@ a {
 
 .dashboard__grid {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) 320px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.dashboard__side {
+  width: 320px;
+  justify-self: end;
+  display: grid;
   gap: 1.5rem;
 }
 
 @media (max-width: 960px) {
   .dashboard__grid {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard__side {
+    width: 100%;
+    justify-self: stretch;
   }
 }
 
