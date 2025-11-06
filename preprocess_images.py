@@ -17,13 +17,23 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import math
+import sys
+import uuid
+from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
+
+from supabase_utils import (
+    SupabaseConfigError,
+    SupabaseRepository,
+    guess_content_type,
+)
 
 SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
@@ -54,6 +64,35 @@ def parse_args() -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="Do not write files; useful to verify which images would be processed.",
+    )
+    parser.add_argument(
+        "--record-to-db",
+        action="store_true",
+        help="Upload original/processed images and metadata to Supabase.",
+    )
+    parser.add_argument(
+        "--user-id",
+        help="Supabase auth user UUID (required when --record-to-db is set).",
+    )
+    parser.add_argument(
+        "--project-id",
+        help="Existing project UUID to associate with this run.",
+    )
+    parser.add_argument(
+        "--project-title",
+        default=None,
+        help="Project title when creating a new project.",
+    )
+    parser.add_argument(
+        "--project-description",
+        default=None,
+        help="Optional description when creating a new project.",
+    )
+    parser.add_argument(
+        "--manifest-path",
+        type=Path,
+        default=None,
+        help="Path for the Supabase manifest JSON (defaults to <output-dir>/manifest.json).",
     )
     return parser.parse_args()
 
@@ -184,7 +223,7 @@ def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, bool]:
 def preprocess_image(
     path: Path,
     min_size: int,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, Dict[str, object]]:
     pil_image = Image.open(path)
     pil_image = ImageOps.exif_transpose(pil_image)
     rgb = np.array(pil_image)
@@ -193,12 +232,15 @@ def preprocess_image(
     image, cropped = detect_card_region(image)
 
     h, w = image.shape[:2]
+    original_shape = (int(h), int(w))
     short_side = min(h, w)
+    scale_factor = 1.0
     if short_side < min_size:
         scale = min_size / short_side
         new_w = math.ceil(w * scale)
         new_h = math.ceil(h * scale)
         image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+        scale_factor = scale
 
     image = cv2.fastNlMeansDenoisingColored(image, None, h=3, hColor=3, templateWindowSize=7, searchWindowSize=21)
 
@@ -214,26 +256,174 @@ def preprocess_image(
 
     image = adjust_gamma(image, 1.1)
 
-    return image
+    metadata = {
+        "cropped": bool(cropped),
+        "scale_factor": round(float(scale_factor), 4),
+        "original_shape": list(original_shape),
+        "final_shape": [int(image.shape[0]), int(image.shape[1])],
+        "min_size": min_size,
+    }
+
+    return image, metadata
 
 
 def main() -> None:
     args = parse_args()
+    if args.record_to_db and args.dry_run:
+        print("[ERROR] --record-to-db cannot be used with --dry-run.", file=sys.stderr)
+        sys.exit(1)
+
     image_paths = collect_image_paths(args.inputs)
     output_dir = args.output_dir.expanduser()
     if not args.dry_run:
         output_dir.mkdir(parents=True, exist_ok=True)
 
+    repo: Optional[SupabaseRepository] = None
+    project_id: Optional[str] = args.project_id
+    manifest_entries: List[Dict[str, object]] = []
+    manifest_path = args.manifest_path
+    if manifest_path is None:
+        manifest_path = output_dir / "manifest.json"
+
+    if args.record_to_db:
+        if not args.user_id:
+            print("[ERROR] --user-id is required when --record-to-db is set.", file=sys.stderr)
+            sys.exit(1)
+        try:
+            repo = SupabaseRepository()
+        except SupabaseConfigError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            sys.exit(1)
+        except Exception as exc:
+            print(f"[ERROR] Failed to initialise Supabase client: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        project_title = args.project_title or datetime.utcnow().strftime("Project %Y-%m-%d %H:%M:%S")
+        try:
+            project_id = repo.ensure_project(
+                project_id=project_id,
+                user_id=args.user_id,
+                title=project_title,
+                description=args.project_description,
+            )
+        except Exception as exc:
+            print(f"[ERROR] Failed to ensure project: {exc}", file=sys.stderr)
+            sys.exit(1)
+        print(f"[INFO] Recording assets under project {project_id}")
+
     for idx, path in enumerate(image_paths, start=1):
         print(f"[INFO] ({idx}/{len(image_paths)}) Processing {path}")
         if args.dry_run:
             continue
-        processed = preprocess_image(path, args.min_size)
+        processed, process_info = preprocess_image(path, args.min_size)
         destination = output_dir / path.name
         success = cv2.imwrite(str(destination), processed)
         if not success:
             raise RuntimeError(f"Failed to write preprocessed image: {destination}")
+
+        if repo and project_id:
+            unique_token = uuid.uuid4().hex[:8]
+            safe_suffix = path.suffix.lower() or ".jpg"
+            safe_base = f"{path.stem}-{unique_token}{safe_suffix}"
+
+            width: Optional[int] = None
+            height: Optional[int] = None
+            fmt: Optional[str] = None
+            captured_at: Optional[datetime] = None
+            try:
+                with Image.open(path) as im:
+                    fmt = im.format
+                    width, height = im.size
+                    exif = im.getexif()
+                    if exif:
+                        dt_raw = exif.get(36867) or exif.get(306)
+                        if isinstance(dt_raw, str):
+                            try:
+                                captured_at = datetime.strptime(dt_raw, "%Y:%m:%d %H:%M:%S")
+                            except ValueError:
+                                captured_at = None
+            except Exception as exc:
+                print(f"[WARN] Failed to read EXIF metadata for {path}: {exc}", file=sys.stderr)
+
+            try:
+                original_bytes = path.read_bytes()
+                source_key = f"{project_id}/original/{safe_base}"
+                source_storage_path = repo.upload_source_file(
+                    path=source_key,
+                    content=original_bytes,
+                    content_type=guess_content_type(path),
+                )
+            except Exception as exc:
+                print(f"[ERROR] Failed to upload original image to Supabase: {exc}", file=sys.stderr)
+                sys.exit(1)
+
+            try:
+                source_record = repo.upsert_source_image(
+                    project_id=project_id,
+                    user_id=args.user_id,
+                    storage_path=source_storage_path,
+                    original_filename=path.name,
+                    width=width,
+                    height=height,
+                    fmt=fmt,
+                    captured_at=captured_at,
+                    metadata={"local_path": str(path)},
+                )
+            except Exception as exc:
+                print(f"[ERROR] Failed to record source image metadata: {exc}", file=sys.stderr)
+                sys.exit(1)
+
+            try:
+                processed_bytes = destination.read_bytes()
+                processed_key = f"{project_id}/processed/{safe_base}"
+                processed_storage_path = repo.upload_processed_file(
+                    path=processed_key,
+                    content=processed_bytes,
+                    content_type=guess_content_type(destination),
+                )
+            except Exception as exc:
+                print(f"[ERROR] Failed to upload processed image to Supabase: {exc}", file=sys.stderr)
+                sys.exit(1)
+
+            try:
+                processed_record = repo.upsert_processed_image(
+                    project_id=project_id,
+                    user_id=args.user_id,
+                    source_image_id=source_record["id"],
+                    storage_path=processed_storage_path,
+                    variant="preprocessed",
+                    params=process_info,
+                )
+            except Exception as exc:
+                print(f"[ERROR] Failed to record processed image metadata: {exc}", file=sys.stderr)
+                sys.exit(1)
+
+            manifest_entries.append(
+                {
+                    "source_path": str(path),
+                    "processed_path": str(destination),
+                    "source_storage_path": source_record["storage_path"],
+                    "processed_storage_path": processed_record["storage_path"],
+                    "source_image_id": source_record["id"],
+                    "processed_image_id": processed_record["id"],
+                }
+            )
+
     print(f"[INFO] Completed preprocessing of {len(image_paths)} image(s). Output: {output_dir}")
+
+    if repo and project_id and manifest_entries:
+        manifest_payload = {
+            "project_id": project_id,
+            "user_id": args.user_id,
+            "generated_at": datetime.utcnow().isoformat(),
+            "entries": manifest_entries,
+        }
+        try:
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            manifest_path.write_text(json.dumps(manifest_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"[INFO] Wrote Supabase manifest to {manifest_path}")
+        except Exception as exc:
+            print(f"[WARN] Failed to write manifest file {manifest_path}: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":

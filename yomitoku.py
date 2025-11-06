@@ -20,7 +20,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 import cv2
 import numpy as np
@@ -56,6 +56,12 @@ from yomitoku import DocumentAnalyzer
 from yomitoku.document_analyzer import DocumentAnalyzerSchema
 from yomitoku.export import export_csv, export_html, export_json, export_markdown
 
+from supabase_utils import (
+    SupabaseConfigError,
+    SupabaseRepository,
+    build_result_payload,
+)
+
 SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
 SUMMARY_HEADERS = [
@@ -75,6 +81,26 @@ GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
 GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
 GEMINI_ENV_FILE = Path(".env.local")
 GEMINI_MODEL_INSTANCE = None
+
+
+def load_manifest_data(manifest_path: Path) -> Dict[str, Any]:
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entries = data.get("entries")
+    if not isinstance(entries, list):
+        raise ValueError("Manifest JSON must contain an 'entries' array.")
+    return data
+
+
+def index_manifest_entries(entries: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    index: Dict[str, Dict[str, Any]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        for key in ("source_path", "processed_path"):
+            value = entry.get(key)
+            if isinstance(value, str):
+                index[value] = entry
+    return index
 
 EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 URL_PATTERN = re.compile(r"(?:https?://|www\.)[^\s<>]+")
@@ -892,6 +918,24 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable Gemini-assisted summarization and use heuristic extraction only.",
     )
+    parser.add_argument(
+        "--record-to-db",
+        action="store_true",
+        help="Insert structured results into Supabase.",
+    )
+    parser.add_argument(
+        "--user-id",
+        help="Supabase auth user UUID (required when --record-to-db is set).",
+    )
+    parser.add_argument(
+        "--project-id",
+        help="Project UUID for result storage (defaults to manifest project).",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        help="Manifest JSON produced by preprocess_images.py to resolve DB identifiers.",
+    )
 
     return parser.parse_args()
 
@@ -950,6 +994,51 @@ def main() -> None:
         split_text_across_cells=args.split_text_across_cells,
     )
 
+    manifest_path: Optional[Path] = args.manifest
+    if manifest_path is None:
+        candidate = args.output_dir / "manifest.json"
+        if candidate.exists():
+            manifest_path = candidate
+
+    manifest_data: Dict[str, Any] = {}
+    manifest_index: Dict[str, Dict[str, Any]] = {}
+    if manifest_path:
+        try:
+            manifest_data = load_manifest_data(manifest_path)
+            entries = manifest_data.get("entries") or []
+            if isinstance(entries, list):
+                manifest_index = index_manifest_entries(entries)
+        except Exception as exc:
+            print(f"[ERROR] Failed to load manifest file {manifest_path}: {exc}", file=sys.stderr)
+            sys.exit(1)
+    elif args.record_to_db:
+        print("[ERROR] --record-to-db requires a manifest file (use --manifest).", file=sys.stderr)
+        sys.exit(1)
+
+    user_id = args.user_id or manifest_data.get("user_id")
+    project_id = args.project_id or manifest_data.get("project_id")
+
+    if args.record_to_db and not user_id:
+        print("[ERROR] Supabase user ID is required (provide --user-id or include in manifest).", file=sys.stderr)
+        sys.exit(1)
+    if args.record_to_db and not project_id:
+        print("[ERROR] Project ID is required to record results (provide --project-id or ensure manifest contains it).", file=sys.stderr)
+        sys.exit(1)
+
+    repo: Optional[SupabaseRepository] = None
+    if args.record_to_db:
+        try:
+            repo = SupabaseRepository()
+        except SupabaseConfigError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            sys.exit(1)
+        except Exception as exc:
+            print(f"[ERROR] Failed to initialise Supabase client: {exc}", file=sys.stderr)
+            sys.exit(1)
+        print(f"[INFO] Recording YomiToku results to Supabase project {project_id}")
+    project_id_str = str(project_id) if project_id else None
+    user_id_str = str(user_id) if user_id else None
+
     args.output_dir.mkdir(parents=True, exist_ok=True)
     summary_csv_path = args.output_dir / "summary.csv"
     with summary_csv_path.open("w", encoding="utf-8", newline="") as csvfile:
@@ -968,9 +1057,74 @@ def main() -> None:
                 args.export_figure_letter,
                 args.visualize,
             )
-            summary_row = {header: report.get("summary", {}).get(header, "") for header in SUMMARY_HEADERS}
+            summary_fields = report.get("summary", {}) or {}
+            summary_row = {header: summary_fields.get(header, "") for header in SUMMARY_HEADERS}
             writer.writerow(summary_row)
             csvfile.flush()
+            if repo and project_id_str and user_id_str:
+                manifest_entry = manifest_index.get(str(image_path))
+                if manifest_entry is None:
+                    print(
+                        f"[WARN] Manifest entry not found for {image_path}; skipping Supabase insert.",
+                        file=sys.stderr,
+                    )
+                else:
+                    source_image_id = manifest_entry.get("source_image_id")
+                    if not isinstance(source_image_id, str):
+                        print(
+                            f"[WARN] Manifest entry missing source_image_id for {image_path}; skipping.",
+                            file=sys.stderr,
+                        )
+                    else:
+                        processed_image_id = manifest_entry.get("processed_image_id")
+                        result_payload = build_result_payload(summary_fields)
+                        result_payload["source"] = {
+                            "path": str(image_path),
+                            "filename": image_path.name,
+                        }
+                        storage_block: Dict[str, Any] = {}
+                        if isinstance(manifest_entry.get("source_storage_path"), str):
+                            storage_block["original"] = manifest_entry["source_storage_path"]
+                        if isinstance(manifest_entry.get("processed_storage_path"), str):
+                            storage_block["processed"] = manifest_entry["processed_storage_path"]
+                        if storage_block:
+                            result_payload["storage"] = storage_block
+                        artifacts: Dict[str, Any] = {
+                            "outputs": report.get("outputs", {}),
+                        }
+                        if "visualizations" in report:
+                            artifacts["visualizations"] = report["visualizations"]
+                        result_payload["artifacts"] = artifacts
+                        result_payload["metrics"] = {
+                            "paragraphs": report.get("paragraphs"),
+                            "tables": report.get("tables"),
+                            "figures": report.get("figures"),
+                            "words": report.get("words"),
+                            "elapsed_seconds": report.get("elapsed_seconds"),
+                        }
+
+                        summary_text = json.dumps(summary_fields, ensure_ascii=False)
+
+                        try:
+                            result_record = repo.insert_yomitoku_result(
+                                project_id=project_id_str,
+                                user_id=user_id_str,
+                                source_image_id=source_image_id,
+                                processed_image_id=processed_image_id if isinstance(processed_image_id, str) else None,
+                                summary_text=summary_text,
+                                result_payload=result_payload,
+                                confidence=None,
+                            )
+                            repo.insert_result_fields(
+                                result_id=result_record["id"],
+                                project_id=project_id_str,
+                                user_id=user_id_str,
+                                payload=result_payload,
+                            )
+                            print(f"[INFO] Stored YomiToku result {result_record['id']} for {image_path}")
+                        except Exception as exc:
+                            print(f"[ERROR] Failed to store YomiToku result for {image_path}: {exc}", file=sys.stderr)
+                            sys.exit(1)
             print(
                 json.dumps(
                     {
