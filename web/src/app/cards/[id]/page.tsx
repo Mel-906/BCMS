@@ -126,8 +126,8 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
       </header>
 
       <div className="scan-layout">
-        <div className="card" style={{ alignItems: "center", justifyContent: "center" }}>
-          <h2 className="card__title" style={{ alignSelf: "flex-start" }}>
+        <div className="card" style={{ alignItems: "flex-start", justifyContent: "flex-start" }}>
+          <h2 className="card__title" style={{ marginBottom: "0.75rem" }}>
             名刺画像
           </h2>
           {imageUrl ? (
