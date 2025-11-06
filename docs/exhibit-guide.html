@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>BCMS 名刺管理システム 展示ガイド</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+        margin: 0 auto;
+        padding: 32px 48px;
+        max-width: 960px;
+        background: #f7f9fc;
+        color: #1f2937;
+        line-height: 1.7;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 48px;
+      }
+
+      header h1 {
+        font-size: 2.2rem;
+        margin-bottom: 12px;
+      }
+
+      header p {
+        font-size: 1.05rem;
+        color: #4b5563;
+      }
+
+      section {
+        margin-bottom: 56px;
+        background: #fff;
+        padding: 28px 32px;
+        border-radius: 18px;
+        box-shadow: 0 15px 40px rgba(15, 23, 42, 0.08);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+      }
+
+      h2 {
+        font-size: 1.6rem;
+        margin-bottom: 16px;
+        color: #1d4ed8;
+      }
+
+      h3 {
+        font-size: 1.25rem;
+        margin: 24px 0 12px;
+        color: #0f172a;
+      }
+
+      ul,
+      ol {
+        padding-left: 1.4rem;
+      }
+
+      li {
+        margin-bottom: 0.6rem;
+      }
+
+      .tech-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        margin-top: 24px;
+      }
+
+      .tech-card {
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 14px;
+        padding: 18px;
+        background: rgba(59, 130, 246, 0.04);
+        box-shadow: 0 12px 26px rgba(37, 99, 235, 0.08);
+      }
+
+      .tech-card h3 {
+        margin: 0 0 8px;
+        font-size: 1.15rem;
+        color: #1d4ed8;
+      }
+
+      .image-placeholder {
+        border: 2px dashed #94a3b8;
+        border-radius: 12px;
+        padding: 16px;
+        margin: 16px 0;
+        text-align: center;
+        font-size: 0.95rem;
+        color: #475569;
+        background: rgba(148, 163, 184, 0.12);
+      }
+
+      .tips {
+        border-left: 6px solid #1d4ed8;
+        padding: 16px 20px;
+        border-radius: 12px;
+        background: rgba(37, 99, 235, 0.08);
+        margin-top: 20px;
+      }
+
+      footer {
+        text-align: center;
+        font-size: 0.9rem;
+        color: #64748b;
+        margin-top: 64px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>BCMS 名刺管理システム 展示ガイド</h1>
+      <p>
+        このシステムは、紙の名刺をデジタル化し、連絡先情報を整理・検索できるようにするための統合プラットフォームです。<br />
+        会場では以下の手順で実際に操作できます。画面イメージは印刷時に別途貼り付けてください。
+      </p>
+    </header>
+
+    <section id="tech-stack">
+      <h2>技術スタック</h2>
+      <p>BCMS は以下の技術で構成されています。</p>
+      <div class="tech-grid">
+        <div class="tech-card">
+          <h3>フロントエンド</h3>
+          <ul>
+            <li>Next.js 16 (App Router)</li>
+            <li>React 19</li>
+            <li>型安全な Supabase クライアント</li>
+          </ul>
+        </div>
+        <div class="tech-card">
+          <h3>バックエンド</h3>
+          <ul>
+            <li>Next.js API Routes</li>
+            <li>非同期ジョブで Python スクリプト実行</li>
+            <li>Supabase Storage/Database 連携</li>
+          </ul>
+        </div>
+        <div class="tech-card">
+          <h3>画像処理 &amp; OCR</h3>
+          <ul>
+            <li>Python + OpenCV による前処理</li>
+            <li>YomiToku OCR + Gemini 連携</li>
+            <li>HEIC/HEIF 対応（pillow-heif）</li>
+          </ul>
+        </div>
+        <div class="tech-card">
+          <h3>ストレージ &amp; 認証</h3>
+          <ul>
+            <li>Supabase Postgres</li>
+            <li>Supabase Storage</li>
+            <li>Supabase Auth (UUID 利用)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="usage">
+      <h2>使い方ガイド</h2>
+
+      <h3>1. ダッシュボードを開く</h3>
+      <div class="image-placeholder">
+        ここにダッシュボード画面の全景スクリーンショットを貼ってください。<br />
+        （名刺カードの一覧と右側のアップロード／サマリーカードが写っているもの）
+      </div>
+      <ul>
+        <li>ブラウザで <strong>名刺管理ダッシュボード</strong> にアクセスします。</li>
+        <li>上部には検索欄、中央に名刺一覧、右側にアップロードと活動サマリーが表示されます。</li>
+        <li>各カードには、名前・所属・メール・電話・解析状況がまとめられています。</li>
+      </ul>
+
+      <h3>2. 名刺を検索・閲覧する</h3>
+      <div class="image-placeholder">
+        検索欄にキーワードを入力している様子、カードがフィルタされた状態のスクリーンショットを貼ってください。
+      </div>
+      <ol>
+        <li>検索ボックスに「名前」「会社」「タグ」などのキーワードを入力します。</li>
+        <li>並び順を「最近更新」または「アップロード順」から選択できます。</li>
+        <li>カードをクリックすると詳細ページに移動し、原本画像・前処理済み画像・抽出情報が確認できます。</li>
+      </ol>
+      <div class="image-placeholder">
+        名刺詳細ページ（画像と抽出結果が並んでいる状態）のスクリーンショットを貼ってください。
+      </div>
+
+      <h3>3. 名刺をアップロードする</h3>
+      <div class="image-placeholder">
+        `/scan` ページのフォーム全体、ファイル一覧またはカメラ起動画面が表示されたスクリーンショットを貼ってください。
+      </div>
+      <ol>
+        <li>右上の「名刺をアップロード」ボタンまたはメニューから <strong>スキャン</strong> ページに移動します。</li>
+        <li>名刺を登録したいプロジェクトを選択します。</li>
+        <li>
+          画像の追加方法は 2 通りあります。
+          <ul>
+            <li><strong>ファイルの選択:</strong> JPEG / PNG / HEIC を複数枚まとめて選択できます。</li>
+            <li><strong>カメラで撮影:</strong> 内蔵・外付けカメラで撮影すると、自動で縦向き補正と明るさ調整がかかり、プレビューに表示されます。</li>
+          </ul>
+        </li>
+        <li>不要な画像はプレビューカードの「削除」ボタンで取り除けます。</li>
+        <li>準備ができたら <strong>解析キューに送信</strong> を押すと、バックエンドで前処理 → OCR → Supabase 登録まで自動で実行されます。</li>
+      </ol>
+      <div class="image-placeholder">
+        プレビューカードにサムネイルが並んでいる様子と「削除」ボタンを示すスクリーンショットを貼ってください。
+      </div>
+
+      <h3>4. 解析結果の確認</h3>
+      <ul>
+        <li>進捗はダッシュボードに戻ると自動で反映されます。必要に応じてブラウザを更新してください。</li>
+        <li>カードのバッジから「前処理済み」「最新解析日」などを確認できます。</li>
+        <li>詳細ページでは抽出された連絡先情報（名前・役職・メール・電話・住所など）を即座に閲覧できます。</li>
+      </ul>
+      <div class="tips">
+        <strong>印刷用ヒント:</strong> 解析結果が反映されたカード一覧と詳細画面のスクリーンショットを並べて貼ると、来場者が「入力 → 解析 → 確認」の流れを直感的に理解できます。
+      </div>
+    </section>
+
+    <section id="notes">
+      <h2>注意事項</h2>
+      <ul>
+        <li>展示環境ではカメラ利用にブラウザの許可が必要です。初回アクセス時にダイアログが表示されたら「許可」を選択してください。</li>
+        <li>HEIC 画像は自動で JPEG に変換して取り込まれますが、変換に数秒かかる場合があります。</li>
+        <li>アップロード直後は解析完了まで少し時間がかかります。カードの「最新解析日」が更新されるまでお待ちください。</li>
+      </ul>
+    </section>
+
+    <footer>
+      © 2025 BCMS – Business Card Management Suite &nbsp;|&nbsp; 技術展示会向けドキュメント
+    </footer>
+  </body>
+</html>
