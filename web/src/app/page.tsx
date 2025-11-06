@@ -57,7 +57,7 @@ function buildFilters(params: URLSearchParams) {
 
 async function loadCards(searchParams: URLSearchParams): Promise<CardSummary[]> {
   const supabase = createSupabaseServerClient();
-  const { keyword } = buildFilters(searchParams);
+  const { keyword, order } = buildFilters(searchParams);
 
   const query = supabase
     .from("source_images")
@@ -107,8 +107,7 @@ async function loadCards(searchParams: URLSearchParams): Promise<CardSummary[]> 
   }
 
   const rows: CardQueryRow[] = (data ?? []) as CardQueryRow[];
-
-  return rows.map((row) => {
+  const cards = rows.map((row) => {
     const processedImage = Array.isArray(row.processed_images)
       ? row.processed_images[0] ?? null
       : null;
@@ -145,6 +144,37 @@ async function loadCards(searchParams: URLSearchParams): Promise<CardSummary[]> 
       summaryFields,
     };
   });
+
+  let filtered = cards;
+  if (keyword) {
+    const normalized = keyword.toLowerCase();
+    filtered = cards.filter((card) => {
+      const summaryValues = card.summaryFields ? Object.values(card.summaryFields) : [];
+      const haystack = [
+        card.sourceImage.original_filename ?? "",
+        card.project.title ?? "",
+        card.project.description ?? "",
+        ...summaryValues,
+      ]
+        .filter(Boolean)
+        .map((value) => value.toLowerCase());
+      return haystack.some((value) => value.includes(normalized));
+    });
+  }
+
+  filtered.sort((a, b) => {
+    if (order === "created") {
+      return (
+        new Date(b.sourceImage.created_at).getTime() -
+        new Date(a.sourceImage.created_at).getTime()
+      );
+    }
+    const aTime = new Date(a.sourceImage.updated_at ?? a.sourceImage.created_at).getTime();
+    const bTime = new Date(b.sourceImage.updated_at ?? b.sourceImage.created_at).getTime();
+    return bTime - aTime;
+  });
+
+  return filtered;
 }
 
 function SearchPanel({ searchParams }: { searchParams: URLSearchParams }) {
