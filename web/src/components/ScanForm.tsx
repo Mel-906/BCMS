@@ -19,15 +19,7 @@ export function ScanForm({ projects }: ScanFormProps) {
 
   if (projects.length === 0) {
     return (
-      <div
-        style={{
-          padding: "1.5rem",
-          border: "1px solid rgba(0,0,0,0.12)",
-          borderRadius: "12px",
-          background: "#fff",
-          color: "rgba(0,0,0,0.65)",
-        }}
-      >
+      <div className="card card--compact muted-text">
         アップロード可能なプロジェクトがありません。先にプロジェクトを作成してください。
       </div>
     );
@@ -81,32 +73,13 @@ export function ScanForm({ projects }: ScanFormProps) {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{
-        display: "grid",
-        gap: "1rem",
-        padding: "1.5rem",
-        border: "1px solid rgba(0,0,0,0.12)",
-        borderRadius: "12px",
-        maxWidth: "640px",
-        background: "#fff",
-      }}
-    >
-      <div style={{ display: "grid", gap: "0.5rem" }}>
-        <label htmlFor="projectId" style={{ fontWeight: 600 }}>
-          プロジェクト
-        </label>
+    <form onSubmit={handleSubmit} className="card scan-form">
+      <div className="input-control">
+        <span style={{ fontWeight: 600 }}>プロジェクト</span>
         <select
           id="projectId"
           name="projectId"
           required
-          style={{
-            border: "1px solid rgba(0,0,0,0.2)",
-            borderRadius: "8px",
-            padding: "0.6rem",
-            fontSize: "0.95rem",
-          }}
           value={selectedProjectId}
           onChange={(event) => {
             setSelectedProjectId(event.target.value);
@@ -123,50 +96,26 @@ export function ScanForm({ projects }: ScanFormProps) {
         </select>
       </div>
 
-      <div style={{ display: "grid", gap: "0.5rem" }}>
-        <label htmlFor="card" style={{ fontWeight: 600 }}>
-          名刺画像（JPEG/PNG）
-        </label>
+      <div className="input-control">
+        <span style={{ fontWeight: 600 }}>名刺画像（JPEG/PNG）</span>
         <input
           id="card"
           name="card"
           type="file"
           accept="image/*"
           required
-          style={{
-            border: "1px dashed rgba(0,0,0,0.2)",
-            padding: "1rem",
-            borderRadius: "8px",
-          }}
         />
+        <p className="scan-note">対応形式: JPEG / PNG / HEIC ・ 最大 10MB</p>
       </div>
 
-      <button
-        type="submit"
-        disabled={status === "uploading"}
-        style={{
-          padding: "0.75rem 1rem",
-          background: "#2563eb",
-          color: "#fff",
-          fontWeight: 600,
-          borderRadius: "8px",
-          border: "none",
-          cursor: status === "uploading" ? "not-allowed" : "pointer",
-        }}
-      >
-        {status === "uploading" ? "アップロード中..." : "アップロード"}
+      <button type="submit" disabled={status === "uploading"} className="primary-button">
+        {status === "uploading" ? "アップロード中..." : "解析キューに送信"}
       </button>
 
       {status !== "idle" && (
-        <p
-          style={{
-            color: status === "success" ? "#15803d" : "#b91c1c",
-            fontSize: "0.95rem",
-            lineHeight: 1.6,
-          }}
-        >
+        <div className={`alert ${status === "success" ? "alert--success" : "alert--error"}`}>
           {message}
-        </p>
+        </div>
       )}
     </form>
   );
