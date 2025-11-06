@@ -58,6 +58,7 @@ class SupabaseRepository:
         }
         if upsert:
             options["upsert"] = "true"
+        storage.upload(path, content, options)
         return f"{bucket}/{path}"
 
     def upload_source_file(self, *, path: str, content: bytes, content_type: str) -> str:
@@ -139,15 +140,12 @@ class SupabaseRepository:
             "captured_at": captured_at.isoformat() if captured_at else None,
             "metadata": metadata,
         }
-        response = (
-            self.client.table("source_images")
-            .upsert(payload, on_conflict="storage_path")
-            .select("*")
-            .eq("storage_path", storage_path)
-            .limit(1)
-            .execute()
-        )
+        table = self.client.table("source_images")
+        response = table.upsert(payload, on_conflict="storage_path").execute()
         data = response.data or []
+        if not data:
+            lookup = table.select("*").eq("storage_path", storage_path).limit(1).execute()
+            data = lookup.data or []
         if not data:
             raise RuntimeError(f"Failed to upsert source image for path {storage_path}")
         return data[0]
@@ -170,15 +168,12 @@ class SupabaseRepository:
             "variant": variant,
             "params": params,
         }
-        response = (
-            self.client.table("processed_images")
-            .upsert(payload, on_conflict="storage_path")
-            .select("*")
-            .eq("storage_path", storage_path)
-            .limit(1)
-            .execute()
-        )
+        table = self.client.table("processed_images")
+        response = table.upsert(payload, on_conflict="storage_path").execute()
         data = response.data or []
+        if not data:
+            lookup = table.select("*").eq("storage_path", storage_path).limit(1).execute()
+            data = lookup.data or []
         if not data:
             raise RuntimeError(f"Failed to upsert processed image for path {storage_path}")
         return data[0]
@@ -203,15 +198,12 @@ class SupabaseRepository:
             "result": result_payload,
             "confidence": confidence,
         }
-        response = (
-            self.client.table("yomitoku_results")
-            .insert(payload)
-            .select("*")
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
+        table = self.client.table("yomitoku_results")
+        response = table.insert(payload).execute()
         data = response.data or []
+        if not data:
+            lookup = table.select("*").eq("source_image_id", source_image_id).order("created_at", desc=True).limit(1).execute()
+            data = lookup.data or []
         if not data:
             raise RuntimeError("Failed to insert YomiToku result.")
         return data[0]
