@@ -57,11 +57,11 @@ export async function POST(request: NextRequest) {
   let tmpDir: string | null = null;
   try {
     const formData = await request.formData();
-    const file = formData.get("card");
+    const files = formData.getAll("card").filter((item): item is File => item instanceof File);
     const projectId = formData.get("projectId");
     const userId = formData.get("userId") ?? request.headers.get("x-user-id");
 
-    if (!(file instanceof File)) {
+    if (files.length === 0) {
       return NextResponse.json({ message: "ファイルが選択されていません。" }, { status: 400 });
     }
 
@@ -80,61 +80,71 @@ export async function POST(request: NextRequest) {
     const pythonExecutable = await resolvePythonExecutable(projectRoot);
 
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bcms-upload-"));
-    const safeName = file.name.replace(/\s+/g, "_") || `${Date.now()}.jpg`;
-    const originalPath = path.join(tmpDir, safeName);
-    const outputDir = path.join(tmpDir, "processed");
 
-    await fs.mkdir(outputDir, { recursive: true });
-    await fs.writeFile(originalPath, Buffer.from(await file.arrayBuffer()));
+    const manifestEntries: Array<{
+      source_image_id: string;
+      source_storage_path: string;
+      processed_image_id?: string;
+    }> = [];
 
-    const preprocessArgs = [
-      path.join(projectRoot, "preprocess_images.py"),
-      originalPath,
-      "--output-dir",
-      outputDir,
-      "--record-to-db",
-      "--user-id",
-      userId,
-      "--project-id",
-      projectId,
-    ];
+    for (const file of files) {
+      const safeName = file.name.replace(/\s+/g, "_") || `${Date.now()}.jpg`;
+      const originalPath = path.join(tmpDir, safeName);
+      const outputDir = path.join(tmpDir, `${safeName}-processed`);
+      await fs.mkdir(outputDir, { recursive: true });
+      await fs.writeFile(originalPath, Buffer.from(await file.arrayBuffer()));
 
-    await runCommand(pythonExecutable, preprocessArgs, {
-      cwd: projectRoot,
-      env: { ...process.env },
-    });
+      const preprocessArgs = [
+        path.join(projectRoot, "preprocess_images.py"),
+        originalPath,
+        "--output-dir",
+        outputDir,
+        "--record-to-db",
+        "--user-id",
+        userId,
+        "--project-id",
+        projectId,
+      ];
 
-    const manifestPath = path.join(outputDir, "manifest.json");
-    const manifestRaw = await fs.readFile(manifestPath, "utf-8");
-    const manifest = JSON.parse(manifestRaw) as {
-      entries: Array<{
-        source_image_id: string;
-        source_storage_path: string;
-        processed_image_id?: string;
-      }>;
-    };
+      await runCommand(pythonExecutable, preprocessArgs, {
+        cwd: projectRoot,
+        env: { ...process.env },
+      });
 
-    const yomitokuArgs = [
-      path.join(projectRoot, "yomitoku.py"),
-      outputDir,
-      "--record-to-db",
-      "--manifest",
-      manifestPath,
-      "--user-id",
-      userId,
-      "--project-id",
-      projectId,
-    ];
+      const manifestPath = path.join(outputDir, "manifest.json");
+      const manifestRaw = await fs.readFile(manifestPath, "utf-8");
+      const manifest = JSON.parse(manifestRaw) as {
+        entries: Array<{
+          source_image_id: string;
+          source_storage_path: string;
+          processed_image_id?: string;
+        }>;
+      };
 
-    await runCommand(pythonExecutable, yomitokuArgs, {
-      cwd: projectRoot,
-      env: { ...process.env },
-    });
+      const yomitokuArgs = [
+        path.join(projectRoot, "yomitoku.py"),
+        outputDir,
+        "--record-to-db",
+        "--manifest",
+        manifestPath,
+        "--user-id",
+        userId,
+        "--project-id",
+        projectId,
+      ];
+
+      await runCommand(pythonExecutable, yomitokuArgs, {
+        cwd: projectRoot,
+        env: { ...process.env },
+      });
+
+      manifestEntries.push(...(manifest.entries ?? []));
+    }
 
     return NextResponse.json(
       {
         message: "Upload and analysis completed.",
-        processed: manifest.entries ?? [],
+        processed: manifestEntries,
       },
       { status: 201 },
     );

@@ -29,10 +29,10 @@ export function ScanForm({ projects }: ScanFormProps) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const file = formData.get("card");
+    const files = formData.getAll("card").filter((item): item is File => item instanceof File);
     const projectId = formData.get("projectId")?.toString() || selectedProjectId;
 
-    if (!(file instanceof File) || !projectId) {
+    if (files.length === 0 || !projectId) {
       setStatus("error");
       setMessage("ファイルとプロジェクトを選択してください。");
       return;
@@ -48,12 +48,14 @@ export function ScanForm({ projects }: ScanFormProps) {
     try {
       setStatus("uploading");
       setMessage("");
-      formData.set("projectId", projectId);
-      formData.append("userId", project.user_id);
+      const payload = new FormData();
+      payload.set("projectId", projectId);
+      payload.append("userId", project.user_id);
+      files.forEach((file) => payload.append("card", file));
 
       const response = await fetch("/api/cards/scan", {
         method: "POST",
-        body: formData,
+        body: payload,
       });
 
       if (!response.ok) {
@@ -104,6 +106,7 @@ export function ScanForm({ projects }: ScanFormProps) {
           type="file"
           accept="image/*"
           required
+          multiple
         />
         <p className="scan-note">対応形式: JPEG / PNG / HEIC ・ 最大 10MB</p>
       </div>
