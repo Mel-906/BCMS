@@ -242,7 +242,6 @@ export function ScanForm({ projects }: ScanFormProps) {
           name="card"
           type="file"
           accept="image/*"
-          required
           multiple
           onChange={(event) => {
             const files = event.currentTarget.files;
