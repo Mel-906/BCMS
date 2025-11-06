@@ -58,7 +58,19 @@ from yomitoku.export import export_csv, export_html, export_json, export_markdow
 
 SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
-SUMMARY_HEADERS = ["名前", "職業", "電話番号", "e-mail", "所属", "所属Tel", "所属住所", "その他"]
+SUMMARY_HEADERS = [
+    "名前",
+    "名前（英語）",
+    "職業",
+    "Tel",
+    "e-mail",
+    "所属",
+    "代表Tel",
+    "所属住所郵便番号",
+    "所属住所",
+    "URL",
+    "その他",
+]
 GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
 GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
 GEMINI_ENV_FILE = Path(".env.local")
@@ -229,11 +241,10 @@ def build_gemini_payload(results: DocumentAnalyzerSchema) -> Dict[str, List[str]
 def call_gemini_summary(model: object, payload_dict: Dict[str, List[str]]) -> Dict[str, str]:
     payload = json.dumps(payload_dict, ensure_ascii=False)
     prompt = (
-        "あなたは名刺 OCR のテキスト抜粋から連絡先情報を整理するアシスタントです。"
-        "以下の JSON (paragraphs / tables / lines) を読み、必ず次のキーを持つ JSON を1つだけ返してください: "
-        "['名前','職業','電話番号','e-mail','所属','所属Tel','所属住所','その他']。"
-        "不明な項目は空文字列にしてください。電話番号は可能な限り形式を整えてください。"
-        "出力は JSON のみでその他の文章を含めないでください。"
+        "You are an assistant that extracts contact information from business card OCR snippets."
+        "Given the JSON payload (paragraphs / tables / lines), return exactly one JSON object with keys "
+        "['名前','名前（英語）','職業','Tel','e-mail','所属','代表Tel','所属住所郵便番号','所属住所','URL','その他']."
+        "Use empty strings for unknown values and separate multiple entries with ';'. Respond with JSON only."
     )
 
     try:
@@ -529,6 +540,15 @@ def extract_emails(lines: List[str]) -> List[str]:
     return sorted(emails)
 
 
+def extract_urls(lines: List[str]) -> List[str]:
+    urls: Set[str] = set()
+    for line in lines:
+        for match in URL_PATTERN.findall(line):
+            cleaned = match.rstrip(".,);")
+            urls.add(cleaned)
+    return sorted(urls)
+
+
 def normalize_phone(number: str) -> str:
     digits = re.sub(r"[^\d+]", "", number)
     if digits.startswith("00"):
@@ -601,8 +621,18 @@ def extract_summary_fields_heuristic(results: DocumentAnalyzerSchema) -> Dict[st
     used: Set[int] = set()
 
     name = extract_name(lines)
-    if name is not None:
+    if name is not None and name in lines:
         used.add(lines.index(name))
+
+    english_name = ""
+    for idx, line in enumerate(lines):
+        candidate = line.strip()
+        if ROMAN_NAME_PATTERN.fullmatch(candidate):
+            english_name = candidate
+            used.add(idx)
+            break
+    if english_name and (not name or name == english_name):
+        name = english_name
 
     occupation = extract_occupation(lines)
     if occupation is not None:
@@ -632,6 +662,13 @@ def extract_summary_fields_heuristic(results: DocumentAnalyzerSchema) -> Dict[st
     for email in emails:
         for idx, line in enumerate(lines):
             if email in line:
+                used.add(idx)
+                break
+
+    urls = extract_urls(lines)
+    for url in urls:
+        for idx, line in enumerate(lines):
+            if url in line:
                 used.add(idx)
                 break
 
@@ -675,14 +712,25 @@ def extract_summary_fields_heuristic(results: DocumentAnalyzerSchema) -> Dict[st
     else:
         address_value = address or ""
 
+    if english_name and not name:
+        name = english_name
+    if not english_name and name and ROMAN_NAME_PATTERN.fullmatch(name.strip()):
+        english_name = name
+
+    postal_field = postal_code or ""
+    url_field = ";".join(urls)
+
     return {
         "名前": name or "",
+        "名前（英語）": english_name or "",
         "職業": occupation or "",
-        "電話番号": personal_phone,
+        "Tel": personal_phone,
         "e-mail": ";".join(emails),
         "所属": company or "",
-        "所属Tel": company_phone,
+        "代表Tel": company_phone,
+        "所属住所郵便番号": postal_field,
         "所属住所": address_value,
+        "URL": url_field,
         "その他": other,
     }
 
