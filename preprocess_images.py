@@ -109,11 +109,23 @@ def _order_points(pts: np.ndarray) -> np.ndarray:
 
 
 def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, bool]:
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    l_channel = lab[:, :, 0]
+    blurred = cv2.GaussianBlur(l_channel, (5, 5), 0)
+
+    thresh = cv2.adaptiveThreshold(
+        blurred,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        35,
+        5,
+    )
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
+    mask = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    edges = cv2.Canny(mask, 30, 120)
     edges = cv2.dilate(edges, None, iterations=2)
-    edges = cv2.erode(edges, None, iterations=1)
 
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
@@ -124,15 +136,17 @@ def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, bool]:
 
     for contour in sorted(contours, key=cv2.contourArea, reverse=True):
         area = cv2.contourArea(contour)
-        if area < image_area * 0.2:
+        if area < image_area * 0.15:
             continue
 
         peri = cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
-        if len(approx) != 4:
-            continue
+        if len(approx) == 4:
+            pts = approx.reshape(4, 2)
+        else:
+            rect_box = cv2.minAreaRect(contour)
+            pts = cv2.boxPoints(rect_box)
 
-        pts = approx.reshape(4, 2)
         rect = _order_points(pts)
 
         (tl, tr, br, bl) = rect
@@ -145,6 +159,12 @@ def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, bool]:
         height = int(max(height_left, height_right))
 
         if width < 200 or height < 200:
+            continue
+
+        aspect = width / height if height != 0 else 0
+        if aspect < 1.0:
+            aspect = height / width
+        if aspect < 1.1 or aspect > 3.5:
             continue
 
         dst = np.array([
