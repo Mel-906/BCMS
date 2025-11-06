@@ -18,6 +18,7 @@ export function ScanForm({ projects }: ScanFormProps) {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => projects[0]?.id ?? "");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -44,7 +45,7 @@ export function ScanForm({ projects }: ScanFormProps) {
     }
 
     try {
-      stopCamera();
+      stopCamera({ resetError: false });
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
@@ -52,13 +53,8 @@ export function ScanForm({ projects }: ScanFormProps) {
       });
       streamRef.current = stream;
       setCameraError(null);
+      setIsCameraReady(false);
       setIsCameraOpen(true);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const video = videoRef.current;
-      if (video) {
-        video.srcObject = stream;
-        await video.play();
-      }
     } catch (error) {
       const err = error instanceof Error ? error.message : "カメラを起動できませんでした。";
       setCameraError(err);
@@ -72,12 +68,51 @@ export function ScanForm({ projects }: ScanFormProps) {
       streamRef.current = null;
     }
     setIsCameraOpen(false);
+    setIsCameraReady(false);
     if (resetError) {
       setCameraError(null);
     }
   }
 
+  useEffect(() => {
+    if (!isCameraOpen) {
+      return;
+    }
+
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) {
+      return;
+    }
+
+    video.srcObject = stream;
+    const handleLoaded = () => {
+      setIsCameraReady(true);
+    };
+    video.addEventListener("loadedmetadata", handleLoaded, { once: true });
+    const playPromise = video.play();
+    if (playPromise instanceof Promise) {
+      playPromise.catch((error) => {
+        const err = error instanceof Error ? error.message : "カメラ映像を表示できません。";
+        setCameraError(err);
+        stopCamera();
+      });
+    }
+
+    return () => {
+      video.pause();
+      video.srcObject = null;
+      video.removeEventListener("loadedmetadata", handleLoaded);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCameraOpen]);
+
   async function capturePhoto() {
+    if (!isCameraReady) {
+      setCameraError("カメラの準備が完了していません。数秒お待ちください。");
+      return;
+    }
+
     const video = videoRef.current;
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
       setCameraError("カメラの準備が完了していません。もう一度お試しください。");
@@ -280,11 +315,21 @@ export function ScanForm({ projects }: ScanFormProps) {
               autoPlay
               muted
             />
+            {!isCameraReady && !cameraError ? (
+              <p className="muted-text" style={{ textAlign: "center" }}>
+                カメラを初期化しています…
+              </p>
+            ) : null}
             <div className="camera-modal__actions">
-              <button type="button" className="primary-button" onClick={capturePhoto}>
-                撮影して追加
+              <button
+                type="button"
+                className="primary-button"
+                onClick={capturePhoto}
+                disabled={!isCameraReady}
+              >
+                {isCameraReady ? "撮影して追加" : "準備中"}
               </button>
-              <button type="button" className="secondary-button" onClick={stopCamera}>
+              <button type="button" className="secondary-button" onClick={() => stopCamera()}>
                 キャンセル
               </button>
             </div>
