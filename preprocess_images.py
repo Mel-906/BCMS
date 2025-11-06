@@ -28,6 +28,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
+from pillow_heif import register_heif_opener
 
 from supabase_utils import (
     SupabaseConfigError,
@@ -35,7 +36,19 @@ from supabase_utils import (
     guess_content_type,
 )
 
-SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
+SUPPORTED_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".webp",
+    ".heic",
+    ".heif",
+}
+
+register_heif_opener()
 
 
 def parse_args() -> argparse.Namespace:

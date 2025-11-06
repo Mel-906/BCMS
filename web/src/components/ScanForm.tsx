@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 
 type ProjectOption = {
   id: string;
@@ -156,16 +156,46 @@ export function ScanForm({ projects }: ScanFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCameraOpen]);
 
-  function createUploadItem(file: File): SelectedItem {
+  async function generatePreview(file: File): Promise<{ url?: string; revoke: boolean }> {
+    const lower = file.name.toLowerCase();
+    const isHeic =
+      file.type === "image/heic" ||
+      file.type === "image/heif" ||
+      lower.endsWith(".heic") ||
+      lower.endsWith(".heif");
+
+    if (isHeic) {
+      try {
+        const heic2any = (await import("heic2any")).default;
+        const converted = await heic2any({
+          blob: file,
+          toType: "image/jpeg",
+          quality: 0.8,
+        });
+        const blob = Array.isArray(converted) ? converted[0] : converted;
+        if (blob instanceof Blob) {
+          const url = URL.createObjectURL(blob);
+          return { url, revoke: true };
+        }
+      } catch (error) {
+        console.error("[scan] Failed to convert HEIC for preview", error);
+        return { url: undefined, revoke: false };
+      }
+    }
+
+    return { url: URL.createObjectURL(file), revoke: true };
+  }
+
+  async function createUploadItem(file: File): Promise<SelectedItem> {
     const key = `${file.name}-${file.size}-${file.lastModified}`;
-    const previewUrl = URL.createObjectURL(file);
+    const preview = await generatePreview(file);
     return {
       id: `${key}-upload`,
       key,
       file,
-      previewUrl,
+      previewUrl: preview.url,
       source: "upload",
-      revokePreview: true,
+      revokePreview: preview.revoke,
     };
   }
 
@@ -177,6 +207,7 @@ export function ScanForm({ projects }: ScanFormProps) {
       file,
       previewUrl,
       source: "camera",
+      revokePreview: false,
     };
   }
 
@@ -307,7 +338,7 @@ export function ScanForm({ projects }: ScanFormProps) {
     updateSelectedItems((prev) => prev.filter((item) => item.id !== itemId));
   }
 
-  function handleFileInput(event: ChangeEvent<HTMLInputElement>) {
+  async function handleFileInput(event: ChangeEvent<HTMLInputElement>) {
     const { files } = event.currentTarget;
 
     if (!files || files.length === 0) {
@@ -315,7 +346,7 @@ export function ScanForm({ projects }: ScanFormProps) {
       return;
     }
 
-    const newItems = Array.from(files).map((file) => createUploadItem(file));
+    const newItems = await Promise.all(Array.from(files).map((file) => createUploadItem(file)));
     updateSelectedItems((prev) => {
       const existingKeys = new Set(prev.map((item) => item.key));
       const deduped = newItems.filter((item) => !existingKeys.has(item.key));
@@ -324,7 +355,7 @@ export function ScanForm({ projects }: ScanFormProps) {
     event.currentTarget.value = "";
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const projectId = selectedProjectId;
@@ -409,7 +440,7 @@ export function ScanForm({ projects }: ScanFormProps) {
           id="card"
           name="card"
           type="file"
-          accept="image/*"
+          accept="image/*,.heic,.heif"
           multiple
           onChange={handleFileInput}
         />

@@ -352,4 +352,6 @@ def guess_content_type(path: pathlib.Path) -> str:
         return "image/bmp"
     if suffix in {".tif", ".tiff"}:
         return "image/tiff"
+    if suffix in {".heic", ".heif"}:
+        return "image/heic"
     return "application/octet-stream"
