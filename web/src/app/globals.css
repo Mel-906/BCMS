@@ -194,6 +194,8 @@ a {
   display: grid;
   gap: 0.7rem;
   transition: border 0.2s ease, box-shadow 0.2s ease;
+  text-decoration: none;
+  color: inherit;
 }
 
 .project-card:hover {

@@ -286,7 +286,12 @@ export default async function Home() {
                   const phone = latestSummary?.["Tel"] ?? "";
 
                   return (
-                    <article key={card.sourceImage.id} className="project-card">
+                    <Link
+                      key={card.sourceImage.id}
+                      href={`/cards/${card.sourceImage.id}`}
+                      className="project-card"
+                      style={{ textDecoration: "none" }}
+                    >
                       <div className="project-card__header">
                         <div>
                           <h3 className="project-card__title">{name}</h3>
@@ -334,14 +339,8 @@ export default async function Home() {
                           </p>
                         )}
                       </div>
-
-                      <div className="project-card__links">
-                        <Link href={`/projects/${card.project.id}`}>プロジェクトへ →</Link>
-                        <Link href={`/projects/${card.project.id}/manage`}>
-                          編集 → {/* manage page allows editing summary */}
-                        </Link>
-                      </div>
-                    </article>
+                      <div className="project-card__links" />
+                    </Link>
                   );
                 })}
               </div>
