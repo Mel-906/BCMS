@@ -69,7 +69,7 @@ async function loadProjects(): Promise<ProjectStats[]> {
 
 export default async function ProjectsPage() {
   const projects = await loadProjects();
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const defaultUser = cookieStore.get("supabase-user-id")?.value ?? "";
 
   return (
