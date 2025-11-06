@@ -56,7 +56,11 @@ function buildFilters(params: URLSearchParams) {
   return { keyword, order };
 }
 
-async function loadCards(searchParams: URLSearchParams): Promise<CardSummary[]> {
+const MAX_DASHBOARD_CARDS = 30;
+
+async function loadCards(
+  searchParams: URLSearchParams,
+): Promise<{ cards: CardSummary[]; total: number }> {
   const supabase = createSupabaseServerClient();
   const { keyword, order } = buildFilters(searchParams);
 
@@ -171,7 +175,8 @@ async function loadCards(searchParams: URLSearchParams): Promise<CardSummary[]> 
     return bTime - aTime;
   });
 
-  return filtered;
+  const limited = filtered.slice(0, MAX_DASHBOARD_CARDS);
+  return { cards: limited, total: filtered.length };
 }
 
 function SearchPanel({ searchParams }: { searchParams: URLSearchParams }) {
@@ -295,8 +300,8 @@ export default async function Home({
     }
   }
 
-  const cards = await loadCards(params);
-  const totalCards = cards.length;
+  const { cards, total } = await loadCards(params);
+  const totalCards = total;
   const projectCount = new Set(cards.map((card) => card.project.id)).size;
   const recentUpdated =
     cards
@@ -308,6 +313,7 @@ export default async function Home({
   const recentUpdatedLabel = recentUpdated
     ? new Date(recentUpdated).toLocaleString()
     : null;
+  const isLimited = totalCards > cards.length;
 
   return (
     <main className="dashboard">
@@ -318,7 +324,10 @@ export default async function Home({
 
           <div className="card">
             <h2 className="card__title">
-              名刺一覧 <span style={{ fontSize: "0.9rem", color: "rgba(15,23,42,0.55)" }}>({cards.length} 件)</span>
+              名刺一覧{" "}
+              <span style={{ fontSize: "0.9rem", color: "rgba(15,23,42,0.55)" }}>
+                ({cards.length} 件{isLimited ? ` / 全 ${totalCards} 件` : ""})
+              </span>
             </h2>
 
             {cards.length === 0 ? (
@@ -327,6 +336,11 @@ export default async function Home({
               </p>
             ) : (
               <div className="project-list">
+                {isLimited ? (
+                  <p className="muted-text">
+                    検索条件に一致する最新 {cards.length} 件のみ表示しています。キーワードを絞ると他の名刺を確認できます。
+                  </p>
+                ) : null}
                 {cards.map((card) => {
                   const latestSummary = card.summaryFields;
                   const name =
