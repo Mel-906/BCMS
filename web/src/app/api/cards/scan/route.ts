@@ -87,6 +87,12 @@ export async function POST(request: NextRequest) {
       processed_image_id?: string;
     }> = [];
 
+    const aggregatedManifests: Array<{
+      source_image_id: string;
+      source_storage_path: string;
+      processed_image_id?: string;
+    }[]> = [];
+
     for (const file of files) {
       const safeName = file.name.replace(/\s+/g, "_") || `${Date.now()}.jpg`;
       const originalPath = path.join(tmpDir, safeName);
@@ -138,8 +144,10 @@ export async function POST(request: NextRequest) {
         env: { ...process.env },
       });
 
-      manifestEntries.push(...(manifest.entries ?? []));
+      aggregatedManifests.push(manifest.entries ?? []);
     }
+
+    const manifestEntries = aggregatedManifests.flat();
 
     return NextResponse.json(
       {

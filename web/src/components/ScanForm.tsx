@@ -48,25 +48,31 @@ export function ScanForm({ projects }: ScanFormProps) {
     try {
       setStatus("uploading");
       setMessage("");
-      const payload = new FormData();
-      payload.set("projectId", projectId);
-      payload.append("userId", project.user_id);
-      files.forEach((file) => payload.append("card", file));
+      const responses = [];
+      for (const file of files) {
+        const payload = new FormData();
+        payload.set("projectId", projectId);
+        payload.append("userId", project.user_id);
+        payload.append("card", file);
 
-      const response = await fetch("/api/cards/scan", {
-        method: "POST",
-        body: payload,
-      });
+        const response = await fetch("/api/cards/scan", {
+          method: "POST",
+          body: payload,
+        });
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message ?? "アップロードに失敗しました。");
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message ?? "アップロードに失敗しました。");
+        }
+
+        responses.push(await response.json());
       }
 
       form.reset();
       setSelectedProjectId(projects[0]?.id ?? "");
       setStatus("success");
-      setMessage("アップロードが完了しました。解析結果が反映されるまでしばらくお待ちください。");
+      const uploadedCount = files.length;
+      setMessage(`アップロードが完了しました（${uploadedCount}件）。解析結果が反映されるまでしばらくお待ちください。`);
     } catch (error) {
       const err = error instanceof Error ? error.message : "アップロードに失敗しました。";
       setStatus("error");
