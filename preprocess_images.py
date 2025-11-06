@@ -19,7 +19,7 @@ from __future__ import annotations
 import argparse
 import math
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Tuple
 
 import cv2
 import numpy as np
@@ -96,6 +96,71 @@ def adjust_gamma(image: np.ndarray, gamma: float) -> np.ndarray:
     return cv2.LUT(image, table)
 
 
+def _order_points(pts: np.ndarray) -> np.ndarray:
+    rect = np.zeros((4, 2), dtype="float32")
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]  # top-left
+    rect[2] = pts[np.argmax(s)]  # bottom-right
+
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]  # top-right
+    rect[3] = pts[np.argmax(diff)]  # bottom-left
+    return rect
+
+
+def detect_card_region(image: np.ndarray) -> Tuple[np.ndarray, bool]:
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 50, 150)
+    edges = cv2.dilate(edges, None, iterations=2)
+    edges = cv2.erode(edges, None, iterations=1)
+
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return image, False
+
+    h, w = image.shape[:2]
+    image_area = float(h * w)
+
+    for contour in sorted(contours, key=cv2.contourArea, reverse=True):
+        area = cv2.contourArea(contour)
+        if area < image_area * 0.2:
+            continue
+
+        peri = cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
+        if len(approx) != 4:
+            continue
+
+        pts = approx.reshape(4, 2)
+        rect = _order_points(pts)
+
+        (tl, tr, br, bl) = rect
+        width_top = np.linalg.norm(tr - tl)
+        width_bottom = np.linalg.norm(br - bl)
+        height_left = np.linalg.norm(bl - tl)
+        height_right = np.linalg.norm(br - tr)
+
+        width = int(max(width_top, width_bottom))
+        height = int(max(height_left, height_right))
+
+        if width < 200 or height < 200:
+            continue
+
+        dst = np.array([
+            [0, 0],
+            [width - 1, 0],
+            [width - 1, height - 1],
+            [0, height - 1],
+        ], dtype="float32")
+
+        matrix = cv2.getPerspectiveTransform(rect, dst)
+        warped = cv2.warpPerspective(image, matrix, (width, height))
+        return warped, True
+
+    return image, False
+
+
 def preprocess_image(
     path: Path,
     min_size: int,
@@ -104,6 +169,8 @@ def preprocess_image(
     pil_image = ImageOps.exif_transpose(pil_image)
     rgb = np.array(pil_image)
     image = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+
+    image, cropped = detect_card_region(image)
 
     h, w = image.shape[:2]
     short_side = min(h, w)
