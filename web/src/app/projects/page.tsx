@@ -2,7 +2,8 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
-import { createProject, deleteProject } from "./actions";
+import { createProject } from "./actions";
+import { DeleteProjectForm } from "./DeleteProjectForm";
 import type { ProjectRow, SourceImageRow, YomitokuResultRow } from "@/lib/database.types";
 
 type ProjectStats = {
@@ -133,37 +134,14 @@ export default async function ProjectsPage() {
                       </span>
                     </div>
                   </Link>
-                <form
-                  action={deleteProject.bind(null, project.id)}
-                  method="post"
-                  style={{ marginTop: "0.75rem" }}
-                  onSubmit={(event) => {
-                    const confirmed = window.confirm("このプロジェクトを削除します。関連する名刺データも削除されます。よろしいですか？");
-                    if (!confirmed) {
-                      event.preventDefault();
-                    }
-                  }}
-                >
-                  <button
-                    type="submit"
-                    style={{
-                      background: "rgba(248, 113, 113, 0.15)",
-                      color: "#b91c1c",
-                        border: "none",
-                        borderRadius: "12px",
-                        padding: "0.5rem 0.9rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      プロジェクトを削除
-                    </button>
-                  </form>
+                <div style={{ marginTop: "0.75rem" }}>
+                  <DeleteProjectForm projectId={project.id} />
                 </div>
-              ))
-            )}
-          </div>
+              </div>
+            ))
+          )}
         </div>
+      </div>
 
         <aside style={{ display: "grid", gap: "1.5rem" }}>
           <form action={createProject} className="card" style={{ maxWidth: "420px" }}>
