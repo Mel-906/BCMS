@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { SourceImageRow, type ProjectRow } from "@/lib/database.types";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { DeleteCardButton } from "@/components/DeleteCardButton";
 
 interface ProjectPageProps {
   params: Promise<{
@@ -144,13 +145,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                 : null;
 
               return (
-                <Link
-                  key={source.id}
-                  href={`/cards/${source.id}`}
-                  className="project-card"
-                  style={{ textDecoration: "none" }}
-                >
-                  <div className="project-card__top">
+                <div key={source.id} className="project-card">
+                  <Link
+                    href={`/cards/${source.id}`}
+                    className="project-card__link"
+                    style={{ textDecoration: "none" }}
+                  >
+                    <div className="project-card__top">
                     <div>
                       <h3 className="project-card__title">{name}</h3>
                       <p className="project-card__subtitle">
@@ -167,7 +168,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                     </div>
                   </div>
 
-                  <div className="project-card__meta">
+                    <div className="project-card__meta">
                     <span>
                       最新更新 {new Date(source.updated_at ?? source.created_at).toLocaleDateString()}
                     </span>
@@ -179,7 +180,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                     </span>
                   </div>
 
-                  <div className="project-card__meta project-card__meta--contact">
+                    <div className="project-card__meta project-card__meta--contact">
                     <span className="chip">
                       メール: <strong>{email || "―"}</strong>
                     </span>
@@ -188,8 +189,12 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                     </span>
                   </div>
 
-                  {memo && <p className="project-card__memo">メモ: {memo}</p>}
-                </Link>
+                    {memo && <p className="project-card__memo">メモ: {memo}</p>}
+                  </Link>
+                  <div style={{ marginTop: "0.75rem", display: "flex", justifyContent: "flex-end" }}>
+                    <DeleteCardButton cardId={source.id} projectId={projectRecord.id} />
+                  </div>
+                </div>
               );
             })}
           </div>

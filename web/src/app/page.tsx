@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { DeleteCardButton } from "@/components/DeleteCardButton";
 import type {
   ProcessedImageRow,
   ProjectRow,
@@ -342,13 +343,13 @@ export default async function Home({
                   ).toLocaleString();
 
                   return (
-                    <Link
-                      key={card.sourceImage.id}
-                      href={`/cards/${card.sourceImage.id}`}
-                      className="project-card"
-                      style={{ textDecoration: "none" }}
-                    >
-                      <div className="project-card__top">
+                    <div key={card.sourceImage.id} className="project-card">
+                      <Link
+                        href={`/cards/${card.sourceImage.id}`}
+                        className="project-card__link"
+                        style={{ textDecoration: "none" }}
+                      >
+                        <div className="project-card__top">
                         <div>
                           <h3 className="project-card__title">{name}</h3>
                           <p className="muted-text project-card__subtitle">
@@ -386,12 +387,16 @@ export default async function Home({
                         </span>
                       </div>
 
-                      {memo && (
-                        <p className="project-card__memo">
-                          メモ: {memo}
-                        </p>
-                      )}
-                    </Link>
+                        {memo && (
+                          <p className="project-card__memo">
+                            メモ: {memo}
+                          </p>
+                        )}
+                      </Link>
+                      <div style={{ marginTop: "0.75rem", display: "flex", justifyContent: "flex-end" }}>
+                        <DeleteCardButton cardId={card.sourceImage.id} projectId={card.project.id} />
+                      </div>
+                    </div>
                   );
                 })}
               </div>
