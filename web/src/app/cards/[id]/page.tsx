@@ -2,10 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 
-import {
-  SUMMARY_HEADERS,
-  parseSummary,
-} from "@/lib/resultUtils";
+import { SUMMARY_HEADERS, parseSummary } from "@/lib/resultUtils";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import type { ProcessedImageRow, ProjectRow, SourceImageRow, YomitokuResultRow } from "@/lib/database.types";
 
@@ -17,6 +14,24 @@ type CardDetailRow = SourceImageRow & {
 
 async function loadCard(cardId: string) {
   const supabase = createSupabaseServerClient();
+
+  async function createSignedUrl(storagePath: string | null, expiresIn = 3600): Promise<string | null> {
+    if (!storagePath) {
+      return null;
+    }
+    const [bucket, ...pathParts] = storagePath.split("/");
+    const objectPath = pathParts.join("/");
+    if (!bucket || !objectPath) {
+      return null;
+    }
+
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(objectPath, expiresIn);
+    if (error) {
+      console.warn("Failed to create signed URL:", error.message);
+      return null;
+    }
+    return data?.signedUrl ?? null;
+  }
 
   const { data, error } = await supabase
     .from("source_images")
@@ -49,6 +64,8 @@ async function loadCard(cardId: string) {
 
   const processedImage = Array.isArray(data.processed_images) ? data.processed_images[0] ?? null : null;
   const latestResult = Array.isArray(data.yomitoku_results) ? data.yomitoku_results[0] ?? null : null;
+  const signedProcessed = await createSignedUrl(processedImage?.storage_path);
+  const signedSource = await createSignedUrl(data.storage_path);
 
   return {
     project: data.projects,
@@ -56,6 +73,7 @@ async function loadCard(cardId: string) {
     processedImage,
     latestResult,
     summaryFields: parseSummary(latestResult?.summary ?? null),
+    imageUrl: signedProcessed ?? signedSource,
   };
 }
 
@@ -87,12 +105,9 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
     notFound();
   }
 
-  const imagePath = card.processedImage?.storage_path ?? card.sourceImage.storage_path;
   const filename = card.sourceImage.original_filename ?? "名刺";
 
-  const imageUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${imagePath}`
-    : null;
+  const imageUrl = card.imageUrl;
 
   return (
     <main className="scan-page">
