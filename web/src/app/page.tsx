@@ -1,23 +1,37 @@
 import Link from "next/link";
 
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
-import type { ProjectRow, YomitokuResultRow } from "@/lib/database.types";
-
-type ResultPreview = Pick<
+import type {
+  ProcessedImageRow,
+  ProjectRow,
+  SourceImageRow,
   YomitokuResultRow,
-  "id" | "created_at" | "summary" | "confidence"
->;
+} from "@/lib/database.types";
 
-interface ProjectSummary {
+type CardSummary = {
   project: ProjectRow;
-  sourceImageCount: number;
-  latestResult: ResultPreview | null;
-  latestSummary: Record<string, string> | null;
-}
+  sourceImage: SourceImageRow;
+  processedImage: ProcessedImageRow | null;
+  latestResult: Pick<YomitokuResultRow, "id" | "created_at" | "summary" | "confidence"> | null;
+  summaryFields: Record<string, string> | null;
+};
 
-type ProjectQueryRow = ProjectRow & {
-  source_images: { count: number | null }[] | null;
-  yomitoku_results: ResultPreview[] | null;
+type CardQueryRow = {
+  id: string;
+  project_id: string;
+  user_id: string;
+  storage_path: string;
+  original_filename: string | null;
+  width: number | null;
+  height: number | null;
+  format: string | null;
+  captured_at: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  projects: ProjectRow;
+  processed_images: ProcessedImageRow[] | null;
+  yomitoku_results: YomitokuResultRow[] | null;
 };
 
 function parseSummary(summary: string | null): Record<string, string> | null {
@@ -35,60 +49,89 @@ function parseSummary(summary: string | null): Record<string, string> | null {
   return null;
 }
 
-async function loadProjects(): Promise<ProjectSummary[]> {
+async function loadCards(): Promise<CardSummary[]> {
   const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("projects")
+
+  const query = supabase
+    .from("source_images")
     .select(
       `
-        id,
-        title,
-        description,
-        status,
-        user_id,
-        created_at,
-        updated_at,
-        source_images ( count ),
-        yomitoku_results (
+        *,
+        projects (*),
+        processed_images:processed_images!source_image_id (
           id,
+          project_id,
+          user_id,
+          source_image_id,
+          storage_path,
+          variant,
+          params,
           created_at,
+          updated_at
+        ),
+        yomitoku_results:yomitoku_results!source_image_id (
+          id,
+          source_image_id,
+          project_id,
+          user_id,
+          processed_image_id,
           summary,
-          confidence
+          confidence,
+          result,
+          created_at,
+          updated_at
         )
       `,
     )
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("created_at", { referencedTable: "processed_images", ascending: false })
+    .limit(1, { referencedTable: "processed_images" })
+    .order("created_at", { referencedTable: "yomitoku_results", ascending: false })
+    .limit(1, { referencedTable: "yomitoku_results" });
+
+  const { data, error } = await query;
 
   if (error) {
-    throw new Error(`Failed to load projects: ${error.message}`);
+    throw new Error(`Failed to load cards: ${error.message}`);
   }
 
-  const rows: ProjectQueryRow[] = (data ?? []) as ProjectQueryRow[];
+  const rows: CardQueryRow[] = (data ?? []) as CardQueryRow[];
 
   return rows.map((row) => {
-    const projectRecord: ProjectRow = {
-      id: row.id,
-      title: row.title,
-      description: row.description,
-      status: row.status,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      user_id: row.user_id,
-    };
-    const latestResult: ResultPreview | null =
-      (row.yomitoku_results && row.yomitoku_results.length > 0
-        ? [...row.yomitoku_results].sort(
-            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-          )[0]
-        : null) ?? null;
-
-    const sourceImageCount = row.source_images?.[0]?.count ?? 0;
+    const processedImage = Array.isArray(row.processed_images)
+      ? row.processed_images[0] ?? null
+      : null;
+    const latestResultFull = Array.isArray(row.yomitoku_results)
+      ? row.yomitoku_results[0] ?? null
+      : null;
+    const summaryFields = parseSummary(latestResultFull?.summary ?? null);
 
     return {
-      project: projectRecord,
-      sourceImageCount,
-      latestResult,
-      latestSummary: parseSummary(latestResult?.summary ?? null),
+      project: row.projects,
+      sourceImage: {
+        id: row.id,
+        project_id: row.project_id,
+        user_id: row.user_id,
+        storage_path: row.storage_path,
+        original_filename: row.original_filename,
+        width: row.width,
+        height: row.height,
+        format: row.format,
+        captured_at: row.captured_at,
+        metadata: row.metadata,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      },
+      processedImage,
+      latestResult: latestResultFull
+        ? {
+            id: latestResultFull.id,
+            created_at: latestResultFull.created_at,
+            summary: latestResultFull.summary,
+            confidence: latestResultFull.confidence,
+          }
+        : null,
+      summaryFields,
     };
   });
 }
@@ -199,11 +242,12 @@ function SummaryPanel({
 }
 
 export default async function Home() {
-  const projects = await loadProjects();
-  const totalCards = projects.reduce((acc, item) => acc + item.sourceImageCount, 0);
+  const cards = await loadCards();
+  const totalCards = cards.length;
+  const projectCount = new Set(cards.map((card) => card.project.id)).size;
   const recentUpdated =
-    projects
-      .map((item) => item.project.updated_at ?? item.project.created_at)
+    cards
+      .map((item) => item.sourceImage.updated_at ?? item.sourceImage.created_at)
       .filter(Boolean)
       .map((date) => new Date(date).getTime())
       .sort((a, b) => b - a)[0] ?? null;
@@ -221,75 +265,93 @@ export default async function Home() {
 
           <div className="card">
             <h2 className="card__title">
-              名刺一覧 <span style={{ fontSize: "0.9rem", color: "rgba(15,23,42,0.55)" }}>({projects.length} 件)</span>
+              名刺一覧 <span style={{ fontSize: "0.9rem", color: "rgba(15,23,42,0.55)" }}>({cards.length} 件)</span>
             </h2>
 
-            {projects.length === 0 ? (
+            {cards.length === 0 ? (
               <p className="muted-text">
                 解析済みの名刺がまだありません。`preprocess_images.py` と `yomitoku.py` を Supabase 連携で実行すると、ここに一覧が表示されます。
               </p>
             ) : (
               <div className="project-list">
-                {projects.map(({ project, sourceImageCount, latestResult, latestSummary }) => (
-                  <article key={project.id} className="project-card">
-                    <div className="project-card__header">
-                      <div>
-                        <h3 className="project-card__title">{project.title}</h3>
-                        {project.description && (
+                {cards.map((card) => {
+                  const latestSummary = card.summaryFields;
+                  const name =
+                    latestSummary?.["名前"] ||
+                    latestSummary?.["名前（英語）"] ||
+                    card.sourceImage.original_filename ||
+                    "名称未設定";
+                  const organization = latestSummary?.["所属"] ?? "";
+                  const email = latestSummary?.["e-mail"] ?? "";
+                  const phone = latestSummary?.["Tel"] ?? "";
+
+                  return (
+                    <article key={card.sourceImage.id} className="project-card">
+                      <div className="project-card__header">
+                        <div>
+                          <h3 className="project-card__title">{name}</h3>
                           <p className="muted-text" style={{ marginTop: "0.35rem" }}>
-                            {project.description}
+                            {organization || "所属情報なし"}
+                          </p>
+                        </div>
+                        <div className="tags">
+                          <span className="tag" style={{ background: "rgba(59,130,246,0.12)", color: "#2563eb" }}>
+                            {card.project.title}
+                          </span>
+                          <span className="tag" style={{ background: "rgba(99,102,241,0.12)", color: "#4c1d95" }}>
+                            {card.processedImage ? "前処理済み" : "原本のみ"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="project-card__meta">
+                        <span>アップロード {new Date(card.sourceImage.created_at).toLocaleDateString()}</span>
+                        <span>
+                          最新解析{" "}
+                          {card.latestResult
+                            ? new Date(card.latestResult.created_at).toLocaleDateString()
+                            : "未解析"}
+                        </span>
+                        {card.latestResult?.confidence !== undefined && card.latestResult.confidence !== null && (
+                          <span>
+                            信頼度 {Math.round(card.latestResult.confidence * 100)}%
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="project-card__meta" style={{ flexDirection: "column", gap: "0.35rem" }}>
+                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                          <span className="tag" style={{ background: "rgba(16,185,129,0.12)", color: "#047857" }}>
+                            メール: {email || "―"}
+                          </span>
+                          <span className="tag" style={{ background: "rgba(16,185,129,0.12)", color: "#047857" }}>
+                            電話: {phone || "―"}
+                          </span>
+                        </div>
+                        {latestSummary?.["その他"] && (
+                          <p className="muted-text" style={{ marginTop: "0.25rem" }}>
+                            メモ: {latestSummary["その他"]}
                           </p>
                         )}
                       </div>
-                      <span className="tag" style={{ background: "rgba(59,130,246,0.12)", color: "#2563eb" }}>
-                        {project.status}
-                      </span>
-                    </div>
 
-                    <div className="project-card__meta">
-                      <span>カード {sourceImageCount} 枚</span>
-                      <span>
-                        更新 {new Date(project.updated_at ?? project.created_at).toLocaleDateString()}
-                      </span>
-                      <span>
-                        最新解析{" "}
-                        {latestResult ? new Date(latestResult.created_at).toLocaleDateString() : "未解析"}
-                      </span>
-                    </div>
-
-                    {latestSummary ? (
-                      <div className="project-card__meta" style={{ flexDirection: "column", gap: "0.4rem" }}>
-                        <div style={{ fontWeight: 600, color: "rgba(15,23,42,0.7)" }}>最新サマリ</div>
-                        <div className="tags">
-                          {["名前", "職業", "所属", "Tel"].map((key) => (
-                            <span key={key} className="tag" style={{ background: "rgba(16,185,129,0.12)", color: "#047857" }}>
-                              {key}: {latestSummary[key] || "—"}
-                            </span>
-                          ))}
-                        </div>
+                      <div className="project-card__links">
+                        <Link href={`/projects/${card.project.id}`}>プロジェクトへ →</Link>
+                        <Link href={`/projects/${card.project.id}/manage`}>
+                          編集 → {/* manage page allows editing summary */}
+                        </Link>
                       </div>
-                    ) : (
-                      <p className="muted-text">まだサマリは登録されていません。</p>
-                    )}
-
-                    <div className="project-card__links">
-                      <Link href={`/projects/${project.id}`}>詳細ページへ →</Link>
-                      <Link href={`/projects/${project.id}/manage`}>管理 →</Link>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             )}
           </div>
         </section>
 
         <aside className="dashboard__side" style={{ display: "grid", gap: "1.5rem" }}>
-          <UploadPanel projectsCount={projects.length} />
-          <SummaryPanel
-            projects={projects.length}
-            cards={totalCards}
-            recentUpdated={recentUpdatedLabel}
-          />
+          <UploadPanel projectsCount={projectCount} />
+          <SummaryPanel projects={projectCount} cards={totalCards} recentUpdated={recentUpdatedLabel} />
         </aside>
       </div>
     </main>
