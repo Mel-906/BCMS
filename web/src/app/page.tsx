@@ -66,7 +66,7 @@ const MAX_DASHBOARD_CARDS = 30;
 
 async function loadCards(
   searchParams: URLSearchParams,
-): Promise<{ cards: CardSummary[]; total: number; page: number }> {
+): Promise<{ cards: CardSummary[]; total: number; projectTotal: number; page: number }> {
   const supabase = createSupabaseServerClient();
   const { keyword, order, page } = buildFilters(searchParams);
 
@@ -182,9 +182,10 @@ async function loadCards(
   });
 
   const total = filtered.length;
+  const projectTotal = new Set(filtered.map((item) => item.project.id)).size;
   const start = (page - 1) * MAX_DASHBOARD_CARDS;
   const limited = filtered.slice(start, start + MAX_DASHBOARD_CARDS);
-  return { cards: limited, total, page };
+  return { cards: limited, total, projectTotal, page };
 }
 
 function SearchPanel({ searchParams }: { searchParams: URLSearchParams }) {
@@ -308,9 +309,9 @@ export default async function Home({
     }
   }
 
-  const { cards, total, page } = await loadCards(params);
+  const { cards, total, projectTotal, page } = await loadCards(params);
   const totalCards = total;
-  const projectCount = new Set(cards.map((card) => card.project.id)).size;
+  const projectCount = projectTotal;
   const recentUpdated =
     cards
       .map((item) => item.sourceImage.updated_at ?? item.sourceImage.created_at)
