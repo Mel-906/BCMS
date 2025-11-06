@@ -53,7 +53,11 @@ class SupabaseRepository:
         upsert: bool = True,
     ) -> str:
         storage = self.client.storage.from_(bucket)
-        storage.upload(path, content, {"content-type": content_type, "upsert": upsert})
+        options = {
+            "content-type": content_type,
+        }
+        if upsert:
+            options["upsert"] = "true"
         return f"{bucket}/{path}"
 
     def upload_source_file(self, *, path: str, content: bytes, content_type: str) -> str:
@@ -357,4 +361,3 @@ def guess_content_type(path: pathlib.Path) -> str:
     if suffix in {".tif", ".tiff"}:
         return "image/tiff"
     return "application/octet-stream"
-
