@@ -46,15 +46,32 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const { data: sourceData, error: sourcesError } = await supabase
     .from("source_images")
-    .select("*")
+    .select(
+      `
+        *,
+        processed_images:processed_images!source_image_id (
+          *
+        ),
+        yomitoku_results:yomitoku_results!source_image_id (
+          *
+        )
+      `,
+    )
     .match({ project_id: projectRecord.id })
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false })
+    .order("created_at", { referencedTable: "yomitoku_results", ascending: false })
+    .limit(1, { referencedTable: "yomitoku_results" });
 
   if (sourcesError) {
     throw new Error(sourcesError.message);
   }
 
-  const sources = ensureArray<SourceImageRow>(sourceData);
+  const sources = ensureArray<
+    SourceImageRow & {
+      processed_images: ProcessedImageRow[] | null;
+      yomitoku_results: YomitokuResultRow[] | null;
+    }
+  >(sourceData);
 
   return (
     <main
@@ -105,39 +122,76 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       <section style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         <h2 style={{ fontSize: "1.4rem", fontWeight: 600 }}>登録済みカード</h2>
         {sources.length > 0 ? (
-          <div
-            style={{
-              border: "1px solid rgba(0,0,0,0.1)",
-              borderRadius: "12px",
-              overflow: "hidden",
-            }}
-          >
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-              <thead style={{ background: "rgba(59,130,246,0.08)" }}>
-                <tr>
-                  <th style={{ textAlign: "left", padding: "0.75rem" }}>ファイル名</th>
-                  <th style={{ textAlign: "left", padding: "0.75rem" }}>Storage Path</th>
-                  <th style={{ textAlign: "left", padding: "0.75rem" }}>解像度</th>
-                  <th style={{ textAlign: "left", padding: "0.75rem" }}>形式</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sources.map((source: SourceImageRow) => (
-                  <tr key={source.id} style={{ borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-                    <td style={{ padding: "0.75rem" }}>{source.original_filename ?? "—"}</td>
-                    <td style={{ padding: "0.75rem", fontFamily: "monospace" }}>
-                      {source.storage_path}
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      {source.width && source.height
-                        ? `${source.width} x ${source.height}`
-                        : "—"}
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>{source.format ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="project-list">
+            {sources.map((source) => {
+              const latestResult = Array.isArray(source.yomitoku_results)
+                ? source.yomitoku_results[0] ?? null
+                : null;
+              const summary = latestResult?.summary
+                ? (JSON.parse(latestResult.summary) as Record<string, string>)
+                : null;
+              const name =
+                summary?.["名前"] ||
+                summary?.["名前（英語）"] ||
+                source.original_filename ||
+                "名称未設定";
+              const organization = summary?.["所属"] ?? "";
+              const email = summary?.["e-mail"] ?? "";
+              const phone = summary?.["Tel"] ?? "";
+              const memo = summary?.["その他"] ?? "";
+              const processed = Array.isArray(source.processed_images)
+                ? source.processed_images[0] ?? null
+                : null;
+
+              return (
+                <Link
+                  key={source.id}
+                  href={`/cards/${source.id}`}
+                  className="project-card"
+                  style={{ textDecoration: "none" }}
+                >
+                  <div className="project-card__top">
+                    <div>
+                      <h3 className="project-card__title">{name}</h3>
+                      <p className="project-card__subtitle">
+                        {organization || "所属情報なし"}
+                      </p>
+                    </div>
+                    <div className="project-card__badges">
+                      <span className="badge badge--primary">
+                        アップロード {new Date(source.created_at).toLocaleDateString()}
+                      </span>
+                      <span className="badge badge--secondary">
+                        {processed ? "前処理済み" : "原本のみ"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="project-card__meta">
+                    <span>
+                      最新更新 {new Date(source.updated_at ?? source.created_at).toLocaleDateString()}
+                    </span>
+                    <span>
+                      最新解析{" "}
+                      {latestResult
+                        ? new Date(latestResult.created_at).toLocaleDateString()
+                        : "未解析"}
+                    </span>
+                  </div>
+
+                  <div className="project-card__meta project-card__meta--contact">
+                    <span className="chip">
+                      メール: <strong>{email || "―"}</strong>
+                    </span>
+                    <span className="chip">
+                      電話: <strong>{phone || "―"}</strong>
+                    </span>
+                  </div>
+
+                  {memo && <p className="project-card__memo">メモ: {memo}</p>}
+                </Link>
+              );
+            })}
           </div>
         ) : (
           <p style={{ color: "rgba(0,0,0,0.6)", fontSize: "0.9rem" }}>登録済みカードはありません。</p>
