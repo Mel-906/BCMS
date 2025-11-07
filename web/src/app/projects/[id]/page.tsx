@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { SourceImageRow, type ProjectRow } from "@/lib/database.types";
+import {
+  SourceImageRow,
+  type ProcessedImageRow,
+  type ProjectRow,
+  type YomitokuResultRow,
+} from "@/lib/database.types";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { DeleteCardButton } from "@/components/DeleteCardButton";
 

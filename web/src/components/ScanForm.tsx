@@ -511,6 +511,12 @@ export function ScanForm({ projects }: ScanFormProps) {
       return;
     }
 
+    if (!project.user_id) {
+      setStatus("error");
+      setMessage("選択したプロジェクトにユーザーIDが設定されていません。/projects の管理画面で編集してください。");
+      return;
+    }
+
     try {
       setStatus("uploading");
       setMessage("");

@@ -14,12 +14,15 @@ async function loadProjects() {
     throw new Error(error.message);
   }
 
-  return (data ?? []).map((project) => ({
-    id: project.id,
-    title: project.title,
-    user_id: project.user_id,
-    updated_at: project.updated_at,
-  }));
+  return (data ?? []).map((project) => {
+    const userIdValue = typeof project.user_id === "string" ? project.user_id : "";
+    return {
+      id: project.id,
+      title: project.title,
+      user_id: userIdValue,
+      updated_at: project.updated_at,
+    };
+  });
 }
 
 export default async function ScanPage() {

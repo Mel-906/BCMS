@@ -89,23 +89,40 @@ class SupabaseRepository:
         description: Optional[str] = None,
         status: str = "active",
     ) -> str:
+        normalized_user_id = (user_id or "").strip()
+        normalized_user_id = None if normalized_user_id.lower() in {"", "null"} else normalized_user_id
+
         if project_id:
             # Validate existence
-            response = (
+            query = self.client.table("projects").select("id,user_id").eq("id", project_id).limit(1)
+            if normalized_user_id:
+                query = query.eq("user_id", normalized_user_id)
+            response = query.execute()
+            data = response.data or []
+            if data:
+                return project_id
+
+            # As a fallback, attempt to resolve by id only to support legacy rows without user_id
+            legacy = (
                 self.client.table("projects")
-                .select("id")
+                .select("id,user_id")
                 .eq("id", project_id)
-                .eq("user_id", user_id)
                 .limit(1)
                 .execute()
             )
-            data = response.data or []
-            if not data:
-                raise RuntimeError(f"Project {project_id} not found for user {user_id}.")
+            legacy_data = legacy.data or []
+            if not legacy_data:
+                raise RuntimeError(f"Project {project_id} not found.")
+
+            legacy_user = legacy_data[0].get("user_id")
+            if normalized_user_id and legacy_user and str(legacy_user) != normalized_user_id:
+                raise RuntimeError(
+                    f"Project {project_id} does not belong to user {normalized_user_id} (expected {legacy_user})."
+                )
             return project_id
 
         payload = {
-            "user_id": user_id,
+            "user_id": normalized_user_id,
             "title": title,
             "description": description,
             "status": status,

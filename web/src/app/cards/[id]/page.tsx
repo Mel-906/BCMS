@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { SUMMARY_HEADERS, parseSummary } from "@/lib/resultUtils";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import type { ProcessedImageRow, ProjectRow, SourceImageRow, YomitokuResultRow } from "@/lib/database.types";
+import { ReprocessButton } from "@/components/ReprocessButton";
 
 type CardDetailRow = SourceImageRow & {
   projects: ProjectRow;
@@ -64,7 +65,7 @@ async function loadCard(cardId: string) {
 
   const processedImage = Array.isArray(data.processed_images) ? data.processed_images[0] ?? null : null;
   const latestResult = Array.isArray(data.yomitoku_results) ? data.yomitoku_results[0] ?? null : null;
-  const signedProcessed = await createSignedUrl(processedImage?.storage_path);
+  const signedProcessed = await createSignedUrl(processedImage?.storage_path ?? null);
   const signedSource = await createSignedUrl(data.storage_path);
 
   return {
@@ -130,6 +131,19 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
           {new Date(card.sourceImage.updated_at).toLocaleString()}
         </p>
       </header>
+
+      <section style={{ display: "grid", gap: "0.75rem", marginBottom: "1.5rem" }}>
+        {!card.latestResult ? (
+          <p className="form-error" role="status">
+            まだ解析結果が登録されていません。元画像から再解析を実行できます。
+          </p>
+        ) : (
+          <p className="muted-text" style={{ margin: 0 }}>
+            解析内容を更新したい場合は再解析ボタンを使用してください。
+          </p>
+        )}
+        <ReprocessButton cardId={card.sourceImage.id} hasResult={Boolean(card.latestResult)} />
+      </section>
 
       <div className="scan-layout">
         <div className="card" style={{ alignItems: "flex-start", justifyContent: "flex-start" }}>

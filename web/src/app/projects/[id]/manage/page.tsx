@@ -49,20 +49,23 @@ async function updateProjectAction(formData: FormData) {
   const title = String(formData.get("title") ?? "");
   const description = String(formData.get("description") ?? "");
   const status = String(formData.get("status") ?? "");
+  const userId = String(formData.get("userId") ?? "").trim();
 
   if (!id || !title) {
     throw new Error("Missing project id or title");
   }
 
   const supabase = createSupabaseServerClient();
-  const { error } = await supabase
-    .from("projects")
-    .update({
-      title,
-      description: description || null,
-      status: status || "active",
-    })
-    .eq("id", id);
+  const updates: Partial<ProjectRow> = {
+    title,
+    description: description || null,
+    status: status || "active",
+  };
+  if (userId) {
+    updates.user_id = userId;
+  }
+
+  const { error } = await supabase.from("projects").update(updates).eq("id", id);
 
   if (error) {
     throw new Error(error.message);
@@ -208,6 +211,21 @@ export default async function ManageProjectPage({
             <input
               name="status"
               defaultValue={project.status}
+              style={{
+                border: "1px solid rgba(0,0,0,0.2)",
+                borderRadius: "8px",
+                padding: "0.65rem",
+                fontSize: "0.95rem",
+              }}
+            />
+          </label>
+
+          <label style={{ display: "grid", gap: "0.35rem" }}>
+            <span style={{ fontWeight: 600 }}>ユーザー ID</span>
+            <input
+              name="userId"
+              defaultValue={project.user_id ?? ""}
+              placeholder="Supabase Auth のユーザー UUID"
               style={{
                 border: "1px solid rgba(0,0,0,0.2)",
                 borderRadius: "8px",
