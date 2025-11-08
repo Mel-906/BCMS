@@ -406,9 +406,37 @@ a {
 }
 
 .camera-modal__actions {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.75rem;
+}
+
+.camera-modal__actions button {
+  width: 100%;
+}
+
+.camera-modal__label {
+  margin: -0.25rem 0 0;
+}
+
+.camera-modal__selector {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.camera-modal__selector label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.85);
+}
+
+.camera-modal__selector select {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  background: #fff;
 }
 
 .muted-text {

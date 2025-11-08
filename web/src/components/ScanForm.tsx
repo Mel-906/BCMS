@@ -31,6 +31,10 @@ export function ScanForm({ projects }: ScanFormProps) {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
+  const [preferredCameraId, setPreferredCameraId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const selectedItemsRef = useRef<SelectedItem[]>([]);
@@ -50,6 +54,27 @@ export function ScanForm({ projects }: ScanFormProps) {
       selectedItemsRef.current.forEach((item) => cleanupPreview(item));
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const stored = window.localStorage.getItem("bcmsPreferredCameraId");
+    if (stored) {
+      setPreferredCameraId(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (preferredCameraId) {
+      window.localStorage.setItem("bcmsPreferredCameraId", preferredCameraId);
+    } else {
+      window.localStorage.removeItem("bcmsPreferredCameraId");
+    }
+  }, [preferredCameraId]);
 
   function cleanupPreview(item: SelectedItem) {
     if (item.revokePreview && item.previewUrl) {
@@ -185,23 +210,58 @@ export function ScanForm({ projects }: ScanFormProps) {
     });
   }
 
-  async function startCamera() {
+  async function startCamera(options?: { deviceId?: string; keepOverlay?: boolean }) {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraError("ブラウザがカメラ撮影に対応していません。別のブラウザをご利用ください。");
-      return;
+      return false;
     }
 
+    const { deviceId, keepOverlay = false } = options ?? {};
+    const targetDeviceId = deviceId ?? preferredCameraId ?? null;
     try {
-      stopCamera({ resetError: false });
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-        },
-      });
+      stopCamera({ resetError: false, keepOverlay });
+      const stream = await navigator.mediaDevices.getUserMedia(
+        targetDeviceId
+          ? {
+              video: {
+                deviceId: { exact: targetDeviceId },
+              },
+            }
+          : {
+              video: {
+                facingMode: { ideal: "environment" },
+              },
+            },
+      );
       streamRef.current = stream;
       setCameraError(null);
       setIsCameraReady(false);
       setIsCameraOpen(true);
+      let devices: MediaDeviceInfo[] = [];
+      try {
+        devices = await navigator.mediaDevices.enumerateDevices();
+      } catch {
+        // 一部ブラウザでは enumerateDevices が失敗する場合があるため握りつぶす
+      }
+      const videoDevices = devices.filter((device) => device.kind === "videoinput");
+      setAvailableCameras(videoDevices);
+      const track = stream.getVideoTracks()[0];
+      const settings = track?.getSettings();
+      let resolvedDeviceId = (settings?.deviceId as string | undefined) ?? targetDeviceId ?? null;
+      if (!resolvedDeviceId && videoDevices.length > 0) {
+        resolvedDeviceId = videoDevices[0]?.deviceId ?? null;
+      }
+      if (!preferredCameraId && videoDevices.length > 0) {
+        const droidCandidate = videoDevices.find((device) =>
+          device.label?.toLowerCase().includes("droid"),
+        );
+        if (droidCandidate) {
+          setPreferredCameraId(droidCandidate.deviceId);
+          resolvedDeviceId = droidCandidate.deviceId;
+        }
+      }
+      setActiveCameraId(resolvedDeviceId);
+      return true;
     } catch (error) {
       let friendly = "カメラを起動できませんでした。接続状況やブラウザ設定をご確認ください。";
       if (error instanceof DOMException) {
@@ -209,21 +269,33 @@ export function ScanForm({ projects }: ScanFormProps) {
           friendly = "カメラの使用が許可されていません。ブラウザの権限設定を確認し、ページを再読み込みしてください。";
         } else if (error.name === "NotFoundError" || error.name === "OverconstrainedError") {
           friendly = "利用可能なカメラが見つかりません。外付けカメラの接続や他のアプリでの使用状況を確認してください。";
+          if (!deviceId && targetDeviceId) {
+            setPreferredCameraId(null);
+            return await startCamera({ keepOverlay });
+          }
         }
       } else if (error instanceof Error) {
         friendly = error.message;
       }
       setCameraError(friendly);
-      stopCamera({ resetError: false });
+      stopCamera({ resetError: false, keepOverlay });
+      return false;
     }
   }
 
-  function stopCamera({ resetError = true }: { resetError?: boolean } = {}) {
+  function stopCamera({
+    resetError = true,
+    keepOverlay = false,
+  }: { resetError?: boolean; keepOverlay?: boolean } = {}) {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
-    setIsCameraOpen(false);
+    if (!keepOverlay) {
+      setIsCameraOpen(false);
+      setAvailableCameras([]);
+      setActiveCameraId(null);
+    }
     setIsCameraReady(false);
     if (resetError) {
       setCameraError(null);
@@ -261,6 +333,35 @@ export function ScanForm({ projects }: ScanFormProps) {
       video.removeEventListener("loadedmetadata", handleLoaded);
     };
   }, [isCameraOpen]);
+
+  async function handleSwitchCamera() {
+    if (availableCameras.length <= 1) {
+      setCameraError("切り替え可能なカメラが他にありません。");
+      return;
+    }
+    const currentIndex = availableCameras.findIndex((device) => device.deviceId === activeCameraId);
+    const nextDevice = availableCameras[(currentIndex + 1) % availableCameras.length] ?? availableCameras[0];
+    setIsSwitchingCamera(true);
+    setPreferredCameraId(nextDevice.deviceId);
+    const success = await startCamera({ deviceId: nextDevice.deviceId, keepOverlay: true });
+    if (!success) {
+      setCameraError("カメラの切り替えに失敗しました。別のカメラを確認してください。");
+    } else {
+      setCameraError(null);
+    }
+    setIsSwitchingCamera(false);
+  }
+
+  async function handleCameraSelection(event: ChangeEvent<HTMLSelectElement>) {
+    const value = event.target.value;
+    const nextId = value.length > 0 ? value : null;
+    setPreferredCameraId(nextId);
+    if (!nextId) {
+      await startCamera({ keepOverlay: true });
+      return;
+    }
+    await startCamera({ deviceId: nextId, keepOverlay: true });
+  }
 
   async function generatePreview(file: File): Promise<{ url?: string; revoke: boolean }> {
     if (isHeicFile(file)) {
@@ -553,6 +654,18 @@ export function ScanForm({ projects }: ScanFormProps) {
     }
   }
 
+  const currentCamera =
+    availableCameras.find((device) => device.deviceId === activeCameraId) ??
+    availableCameras.find((device) => device.deviceId === preferredCameraId) ??
+    null;
+  const currentCameraLabel =
+    (currentCamera?.label?.trim()?.length ?? 0) > 0
+      ? currentCamera?.label ?? ""
+      : currentCamera
+        ? `カメラ ${availableCameras.indexOf(currentCamera) + 1}`
+        : "";
+  const hasMultipleCameras = availableCameras.length > 1;
+
   if (projects.length === 0) {
     return (
       <div className="card card--compact muted-text">
@@ -691,6 +804,27 @@ export function ScanForm({ projects }: ScanFormProps) {
                 カメラを初期化しています…
               </p>
             ) : null}
+            {availableCameras.length > 0 && (
+              <div className="camera-modal__selector">
+                <label htmlFor="camera-device-select">使用するカメラ</label>
+                <select
+                  id="camera-device-select"
+                  value={activeCameraId ?? ""}
+                  onChange={handleCameraSelection}
+                  disabled={availableCameras.length === 0}
+                >
+                  {activeCameraId === null && <option value="">カメラを選択してください</option>}
+                  {availableCameras.map((device, index) => {
+                    const label = device.label?.trim();
+                    return (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {label && label.length > 0 ? label : `カメラ ${index + 1}`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
             <div className="camera-modal__actions">
               <button
                 type="button"
@@ -703,7 +837,22 @@ export function ScanForm({ projects }: ScanFormProps) {
               <button type="button" className="secondary-button" onClick={() => stopCamera()}>
                 キャンセル
               </button>
+              {hasMultipleCameras && (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handleSwitchCamera}
+                  disabled={!isCameraReady || isSwitchingCamera}
+                >
+                  {isSwitchingCamera ? "切り替え中..." : "カメラ切り替え"}
+                </button>
+              )}
             </div>
+            {currentCameraLabel && (
+              <p className="muted-text camera-modal__label" role="status">
+                現在のカメラ: {currentCameraLabel}
+              </p>
+            )}
             {cameraError && (
               <p className="form-error" role="alert">
                 {cameraError}

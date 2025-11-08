@@ -3,12 +3,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import os from "os";
 import path from "path";
-import { spawn } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promises as fs } from "fs";
+import { promisify } from "util";
 
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 const PYTHON_BIN = process.env.PYTHON_BIN;
+const execFileAsync = promisify(execFile);
+
+async function resolveCandidate(candidate: string): Promise<string | null> {
+  try {
+    if (candidate.includes(path.sep) || candidate.startsWith(".")) {
+      await fs.access(candidate);
+      return candidate;
+    }
+
+    const resolver = process.platform === "win32" ? "where" : "which";
+    const { stdout } = await execFileAsync(resolver, [candidate]);
+    const resolved = stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0);
+
+    if (resolved) {
+      return resolved;
+    }
+  } catch {
+    // try next candidate
+  }
+
+  return null;
+}
 
 async function resolvePythonExecutable(projectRoot: string): Promise<string> {
   const candidates = [
@@ -20,11 +46,9 @@ async function resolvePythonExecutable(projectRoot: string): Promise<string> {
   ].filter(Boolean) as string[];
 
   for (const candidate of candidates) {
-    try {
-      await fs.access(candidate);
-      return candidate;
-    } catch {
-      // try next candidate
+    const resolved = await resolveCandidate(candidate);
+    if (resolved) {
+      return resolved;
     }
   }
 
