@@ -307,6 +307,10 @@ class GeminiRateLimitError(RuntimeError):
     """Raised when Gemini API quota is exhausted after retries."""
 
 
+class GeminiPermissionError(RuntimeError):
+    """Raised when Gemini API key is invalid or revoked."""
+
+
 def call_gemini_summary(model: object, payload_dict: Dict[str, List[str]]) -> Dict[str, str]:
     payload = json.dumps(payload_dict, ensure_ascii=False)
     prompt = (
@@ -324,6 +328,8 @@ def call_gemini_summary(model: object, payload_dict: Dict[str, List[str]]) -> Di
                 {"text": payload},
             ])
             break
+        except google_api_exceptions.PermissionDenied as exc:
+            raise GeminiPermissionError(str(exc)) from exc
         except google_api_exceptions.ResourceExhausted as exc:
             if attempt + 1 >= MAX_GEMINI_RETRIES:
                 raise GeminiRateLimitError(str(exc)) from exc
@@ -366,6 +372,12 @@ def generate_summary_fields(results: DocumentAnalyzerSchema, gemini_model: objec
         return call_gemini_summary(gemini_model, payload)
     except GeminiRateLimitError as exc:
         logger.warning("Gemini API の利用上限に到達しました。ヒューリスティック抽出に切り替えます。 (%s)", exc)
+        return extract_summary_fields_heuristic(results)
+    except GeminiPermissionError as exc:
+        logger.error(
+            "Gemini API キーの権限エラーです。環境変数 GEMINI_API_KEY を再設定してください。 (%s)",
+            exc,
+        )
         return extract_summary_fields_heuristic(results)
 
 SAMPLE_IMAGE_PATHS = [
