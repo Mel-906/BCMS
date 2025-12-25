@@ -37,21 +37,18 @@ export function ScanForm({ projects }: ScanFormProps) {
   const [preferredCameraId, setPreferredCameraId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const selectedItemsRef = useRef<SelectedItem[]>([]);
-
   useEffect(() => {
     return () => {
       stopCamera();
-    };
-  }, []);
-
-  useEffect(() => {
-    selectedItemsRef.current = selectedItems;
-  }, [selectedItems]);
-
-  useEffect(() => {
-    return () => {
-      selectedItemsRef.current.forEach((item) => cleanupPreview(item));
+      // Use the ref-like current state to cleanup all previews on unmount
+      setSelectedItems((prev) => {
+        prev.forEach((item) => {
+          if (item.revokePreview && item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+        });
+        return [];
+      });
     };
   }, []);
 
@@ -223,15 +220,15 @@ export function ScanForm({ projects }: ScanFormProps) {
       const stream = await navigator.mediaDevices.getUserMedia(
         targetDeviceId
           ? {
-              video: {
-                deviceId: { exact: targetDeviceId },
-              },
-            }
-          : {
-              video: {
-                facingMode: { ideal: "environment" },
-              },
+            video: {
+              deviceId: { exact: targetDeviceId },
             },
+          }
+          : {
+            video: {
+              facingMode: { ideal: "environment" },
+            },
+          },
       );
       streamRef.current = stream;
       setCameraError(null);
@@ -535,7 +532,7 @@ export function ScanForm({ projects }: ScanFormProps) {
   }
 
   async function handleRotateItem(itemId: string) {
-    const target = selectedItemsRef.current.find((item) => item.id === itemId);
+    const target = selectedItems.find((item) => item.id === itemId);
     if (!target) {
       return;
     }
@@ -597,9 +594,8 @@ export function ScanForm({ projects }: ScanFormProps) {
     event.preventDefault();
     const form = event.currentTarget;
     const projectId = selectedProjectId;
-    const items = selectedItemsRef.current;
 
-    if (items.length === 0 || !projectId) {
+    if (selectedItems.length === 0 || !projectId) {
       setStatus("error");
       setMessage("ファイルとプロジェクトを選択してください。");
       return;
@@ -621,32 +617,35 @@ export function ScanForm({ projects }: ScanFormProps) {
     try {
       setStatus("uploading");
       setMessage("");
-      const responses = [];
-      for (const item of items) {
-        const payload = new FormData();
-        payload.set("projectId", projectId);
-        payload.append("userId", project.user_id);
-        payload.append("card", item.file);
 
-        const response = await fetch("/api/cards/scan", {
-          method: "POST",
-          body: payload,
-        });
+      await Promise.all(
+        selectedItems.map(async (item) => {
+          const payload = new FormData();
+          payload.set("projectId", projectId);
+          payload.append("userId", project.user_id);
+          payload.append("card", item.file);
 
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.message ?? "アップロードに失敗しました。");
-        }
+          const response = await fetch("/api/cards/scan", {
+            method: "POST",
+            body: payload,
+          });
 
-        responses.push(await response.json());
-      }
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message ?? "アップロードに失敗しました。");
+          }
+          return response.json();
+        }),
+      );
 
       form.reset();
+      const uploadedCount = selectedItems.length;
       updateSelectedItems(() => []);
       setSelectedProjectId(projectId);
       setStatus("success");
-      const uploadedCount = items.length;
-      setMessage(`アップロードが完了しました（${uploadedCount}件）。解析結果が反映されるまでしばらくお待ちください。`);
+      setMessage(
+        `アップロードが完了しました（${uploadedCount}件）。解析結果が反映されるまでしばらくお待ちください。`,
+      );
     } catch (error) {
       const err = error instanceof Error ? error.message : "アップロードに失敗しました。";
       setStatus("error");

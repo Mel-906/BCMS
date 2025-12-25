@@ -21,8 +21,12 @@ export function DeleteProjectForm({ projectId }: DeleteProjectFormProps) {
         if (!ok) {
           return;
         }
-        startTransition(() => {
-          deleteProject(projectId);
+        startTransition(async () => {
+          try {
+            await deleteProject(projectId);
+          } catch (error) {
+            alert(error instanceof Error ? error.message : "削除に失敗しました。");
+          }
         });
       }}
     >

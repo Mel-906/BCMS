@@ -22,8 +22,12 @@ export function DeleteCardButton({ cardId, projectId }: DeleteCardButtonProps) {
         if (!confirmed) {
           return;
         }
-        startTransition(() => {
-          deleteCard(cardId, projectId);
+        startTransition(async () => {
+          try {
+            await deleteCard(cardId, projectId);
+          } catch (error) {
+            alert(error instanceof Error ? error.message : "削除に失敗しました。");
+          }
         });
       }}
       style={{

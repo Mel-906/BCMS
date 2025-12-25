@@ -13,13 +13,14 @@ type ProjectStats = {
   lastAnalysis: YomitokuResultRow | null;
 };
 
-async function loadProjects(): Promise<ProjectStats[]> {
-  const supabase = createSupabaseServerClient();
+async function loadProjects(): Promise<{ projects: ProjectStats[]; error?: string }> {
+  try {
+    const supabase = createSupabaseServerClient();
 
-  const { data, error } = await supabase
-    .from("projects")
-    .select(
-      `
+    const { data, error } = await supabase
+      .from("projects")
+      .select(
+        `
         *,
         source_images (
           id,
@@ -37,45 +38,64 @@ async function loadProjects(): Promise<ProjectStats[]> {
           updated_at
         )
       `,
-    )
-    .order("created_at", { ascending: false });
+      )
+      .order("created_at", { ascending: false });
 
-  if (error) {
-    throw new Error(`Failed to load projects: ${error.message}`);
+    if (error) {
+      console.error("[ERROR] loadProjects failed:", error.message);
+      return { projects: [], error: error.message };
+    }
+
+    const projects = (data ?? []).map((row) => {
+      const images = (row.source_images ?? []) as SourceImageRow[];
+      const results = (row.yomitoku_results ?? []) as YomitokuResultRow[];
+
+      const sortedImages = [...images].sort(
+        (a, b) =>
+          new Date(b.updated_at ?? b.created_at).getTime() -
+          new Date(a.updated_at ?? a.created_at).getTime(),
+      );
+      const sortedResults = [...results].sort(
+        (a, b) =>
+          new Date(b.updated_at ?? b.created_at).getTime() -
+          new Date(a.updated_at ?? a.created_at).getTime(),
+      );
+
+      return {
+        project: row as unknown as ProjectRow,
+        cardCount: images.length,
+        lastCard: sortedImages[0] ?? null,
+        lastAnalysis: sortedResults[0] ?? null,
+      };
+    });
+    return { projects };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[ERROR] loadProjects exception:", err);
+    return { projects: [], error: msg };
   }
-
-  return (data ?? []).map((row) => {
-    const images = (row.source_images ?? []) as SourceImageRow[];
-    const results = (row.yomitoku_results ?? []) as YomitokuResultRow[];
-
-    const sortedImages = [...images].sort(
-      (a, b) =>
-        new Date(b.updated_at ?? b.created_at).getTime() -
-        new Date(a.updated_at ?? a.created_at).getTime(),
-    );
-    const sortedResults = [...results].sort(
-      (a, b) =>
-        new Date(b.updated_at ?? b.created_at).getTime() -
-        new Date(a.updated_at ?? a.created_at).getTime(),
-    );
-
-    return {
-      project: row as unknown as ProjectRow,
-      cardCount: images.length,
-      lastCard: sortedImages[0] ?? null,
-      lastAnalysis: sortedResults[0] ?? null,
-    };
-  });
 }
 
 export default async function ProjectsPage() {
-  const projects = await loadProjects();
+  const { projects, error: loadError } = await loadProjects();
   const cookieStore = await cookies();
   const defaultUser = cookieStore.get("supabase-user-id")?.value ?? "";
 
   return (
     <main className="dashboard">
       <header style={{ display: "grid", gap: "1.5rem" }}>
+        {loadError && (
+          <div style={{
+            backgroundColor: "#fee2e2",
+            border: "1px solid #ef4444",
+            color: "#991b1b",
+            padding: "1rem",
+            borderRadius: "0.5rem",
+            fontSize: "0.95rem"
+          }}>
+            <strong>⚠️ 接続エラー:</strong> プロジェクト一覧の取得に失敗しました。{loadError}
+          </div>
+        )}
         <div style={{ display: "grid", gap: "0.6rem" }}>
           <h1 className="dashboard__title" style={{ margin: 0 }}>
             プロジェクト管理
@@ -134,14 +154,14 @@ export default async function ProjectsPage() {
                       </span>
                     </div>
                   </Link>
-                <div style={{ marginTop: "0.75rem" }}>
-                  <DeleteProjectForm projectId={project.id} />
+                  <div style={{ marginTop: "0.75rem" }}>
+                    <DeleteProjectForm projectId={project.id} />
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
-      </div>
 
         <aside style={{ display: "grid", gap: "1.5rem" }}>
           <form action={createProject} className="card" style={{ maxWidth: "420px" }}>
