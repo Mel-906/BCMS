@@ -66,7 +66,7 @@ const MAX_DASHBOARD_CARDS = 30;
 
 async function loadCards(
   searchParams: URLSearchParams,
-): Promise<{ cards: CardSummary[]; total: number; projectTotal: number; page: number }> {
+): Promise<{ cards: CardSummary[]; total: number; projectTotal: number; page: number; error?: string }> {
   const supabase = createSupabaseServerClient();
   const { keyword, order, page } = buildFilters(searchParams);
 
@@ -107,10 +107,24 @@ async function loadCards(
     .order("created_at", { referencedTable: "yomitoku_results", ascending: false })
     .limit(1, { referencedTable: "yomitoku_results" });
 
-  const { data, error } = await query;
+  let data: CardQueryRow[] | null = null;
+  let errorMsg: string | null = null;
 
-  if (error) {
-    throw new Error(`Failed to load cards: ${error.message}`);
+  try {
+    const response = await query;
+    data = response.data as CardQueryRow[];
+    if (response.error) {
+      errorMsg = response.error.message;
+    }
+  } catch (err) {
+    errorMsg = err instanceof Error ? err.message : "Unknown connection error";
+    console.error("[ERROR] loadCards fetch failed:", err);
+  }
+
+  if (errorMsg) {
+    console.warn(`[WARN] Supabase error: ${errorMsg}`);
+    // Instead of throwing, we return an empty state with the error info
+    return { cards: [], total: 0, projectTotal: 0, page: 1, error: errorMsg };
   }
 
   const rows: CardQueryRow[] = (data ?? []) as CardQueryRow[];
@@ -142,11 +156,11 @@ async function loadCards(
       processedImage,
       latestResult: latestResultFull
         ? {
-            id: latestResultFull.id,
-            created_at: latestResultFull.created_at,
-            summary: latestResultFull.summary,
-            confidence: latestResultFull.confidence,
-          }
+          id: latestResultFull.id,
+          created_at: latestResultFull.created_at,
+          summary: latestResultFull.summary,
+          confidence: latestResultFull.confidence,
+        }
         : null,
       summaryFields,
     };
@@ -309,7 +323,7 @@ export default async function Home({
     }
   }
 
-  const { cards, total, projectTotal, page } = await loadCards(params);
+  const { cards, total, projectTotal, page, error: loadError } = await loadCards(params);
   const totalCards = total;
   const projectCount = projectTotal;
   const recentUpdated =
@@ -341,6 +355,22 @@ export default async function Home({
   return (
     <main className="dashboard">
       <h1 className="dashboard__title">名刺管理ダッシュボード</h1>
+
+      {loadError && (
+        <div style={{
+          backgroundColor: "#fee2e2",
+          border: "1px solid #ef4444",
+          color: "#991b1b",
+          padding: "1rem",
+          borderRadius: "0.5rem",
+          marginBottom: "1.5rem",
+          fontSize: "0.95rem"
+        }}>
+          <strong>⚠️ 接続エラー:</strong> Supabase への接続に失敗しました。{loadError}<br />
+          DNS 設定、または Supabase プロジェクトの状態をご確認ください。
+        </div>
+      )}
+
       <div className="dashboard__grid">
         <section className="dashboard__main">
           <SearchPanel searchParams={params} />
@@ -390,46 +420,46 @@ export default async function Home({
                         className="project-card__link"
                         style={{ textDecoration: "none" }}
                       >
-                      <div className="project-card__top">
-                        <div>
-                          <h3 className="project-card__title">{name}</h3>
-                          <p className="muted-text project-card__subtitle">
-                            {organization || "所属情報なし"}
-                          </p>
-                          <p className="muted-text" style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>
-                            プロジェクト: {card.project.title}
-                          </p>
+                        <div className="project-card__top">
+                          <div>
+                            <h3 className="project-card__title">{name}</h3>
+                            <p className="muted-text project-card__subtitle">
+                              {organization || "所属情報なし"}
+                            </p>
+                            <p className="muted-text" style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>
+                              プロジェクト: {card.project.title}
+                            </p>
+                          </div>
+                          <div className="project-card__badges">
+                            <span className="badge badge--primary">
+                              Project {projectTimestamp}
+                            </span>
+                            <span className="badge badge--secondary">
+                              {card.processedImage ? "前処理済み" : "原本のみ"}
+                            </span>
+                          </div>
                         </div>
-                        <div className="project-card__badges">
-                          <span className="badge badge--primary">
-                            Project {projectTimestamp}
+
+                        <div className="project-card__meta">
+                          <span>
+                            アップロード {new Date(card.sourceImage.created_at).toLocaleDateString()}
                           </span>
-                          <span className="badge badge--secondary">
-                            {card.processedImage ? "前処理済み" : "原本のみ"}
+                          <span>
+                            最新解析{" "}
+                            {card.latestResult
+                              ? new Date(card.latestResult.created_at).toLocaleDateString()
+                              : "未解析"}
                           </span>
                         </div>
-                      </div>
 
-                      <div className="project-card__meta">
-                        <span>
-                          アップロード {new Date(card.sourceImage.created_at).toLocaleDateString()}
-                        </span>
-                        <span>
-                          最新解析{" "}
-                          {card.latestResult
-                            ? new Date(card.latestResult.created_at).toLocaleDateString()
-                            : "未解析"}
-                        </span>
-                      </div>
-
-                      <div className="project-card__meta project-card__meta--contact">
-                        <span className="chip">
-                          メール: <strong>{email || "―"}</strong>
-                        </span>
-                        <span className="chip">
-                          電話: <strong>{phone || "―"}</strong>
-                        </span>
-                      </div>
+                        <div className="project-card__meta project-card__meta--contact">
+                          <span className="chip">
+                            メール: <strong>{email || "―"}</strong>
+                          </span>
+                          <span className="chip">
+                            電話: <strong>{phone || "―"}</strong>
+                          </span>
+                        </div>
 
                         {memo && (
                           <p className="project-card__memo">
